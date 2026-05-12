@@ -39,7 +39,7 @@ regionName: "my-custom-region"
 proxyUrl: "https://proxy.mycompany.daytona.io"
 
 # Daytona API credentials (obtain from your Daytona organization)
-daytonaApiUrl: "https://api.daytona.io/api"
+daytonaApiUrl: "https://app.daytona.io/api"
 daytonaApiKey: "dtn_your_api_key_here"
 
 # Enable region registration (required for first install)

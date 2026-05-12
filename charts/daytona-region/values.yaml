@@ -23,7 +23,7 @@ proxyUrl: ""
 snapshotManagerUrl: ""
 
 # Daytona API configuration (required)
-daytonaApiUrl: ""   # e.g., "https://api.daytona.io/api"
+daytonaApiUrl: ""   # e.g., "https://app.daytona.io/api"
 daytonaApiKey: ""   # API key for authentication
 
 # Service-specific configurations
