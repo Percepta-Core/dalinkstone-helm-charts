@@ -75,6 +75,7 @@ graph TB
 
 - Kubernetes 1.19+
 - Helm 3.2.0+
+- At least one worker node labeled `daytona-sandbox-c=true` for the runner DaemonSet to schedule on (see [Kubernetes Runner Autoscaling](#kubernetes-runner-autoscaling-runner--runner-manager) for the full node pool setup).
 
 ## Installing the Chart
 

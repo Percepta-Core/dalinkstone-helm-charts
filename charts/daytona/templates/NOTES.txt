@@ -52,5 +52,18 @@
    # Username: {{ .Values.minio.rootUser }}
    # Password: {{ .Values.minio.rootPassword }}
 {{ end }}
+{{- if .Values.services.runner.enabled }}
+
+⚠️  Sandbox runners require a labeled node:
+   The runner DaemonSet schedules only on nodes labeled `daytona-sandbox-c=true`.
+   Without at least one labeled node, sandbox creation will fail with
+   "Snapshot default-snapshot is pending".
+
+   # Label an existing node:
+   kubectl label node <node-name> daytona-sandbox-c=true
+
+   # For the full production node pool setup (dedicated pool, taints, autoscaling),
+   # see the chart README's "Kubernetes Runner Autoscaling" section.
+{{- end }}
 
 💡 TIP: Run 'kubectl get pods -n {{ include "daytona.namespace" . }}' to check if all services are running!
