@@ -237,7 +237,7 @@ spec:
               {{- else }}
               # Function to install Docker and XFS tools (online mode)
               install_docker() {
-                if command -v docker >/dev/null 2>&1; then
+                if command -v docker >/dev/null 2>&1 && [ -x /usr/bin/dockerd ]; then
                   echo "Docker is already installed"
                   docker version
                   
@@ -272,6 +272,23 @@ spec:
                   # Install with --force-depends to skip the containerd.io dependency
                   dpkg --force-depends -i docker-ce-cli_${DOCKER_VERSION}_amd64.deb
                   dpkg --force-depends -i docker-ce_${DOCKER_VERSION}_amd64.deb
+                  
+                  # AKS compatibility: AKS nodes ship moby-containerd which has a hard
+                  # apt-package conflict with docker-ce, so dpkg refuses to install the
+                  # daemon (CLI installs fine, daemon does not). If dockerd is missing
+                  # after the deb install, fall back to the static-binary tarball.
+                  # EKS/GKE/vanilla Ubuntu nodes install dockerd via the deb above and
+                  # skip this block entirely.
+                  if [ ! -x /usr/bin/dockerd ]; then
+                    echo "dockerd not installed by deb (managed-runtime conflict?) - using static tarball"
+                    curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.4.1.tgz -o /tmp/docker.tgz
+                    tar xzf /tmp/docker.tgz -C /tmp
+                    install -m 0755 /tmp/docker/dockerd /usr/bin/dockerd
+                    install -m 0755 /tmp/docker/docker-proxy /usr/bin/docker-proxy
+                    install -m 0755 /tmp/docker/docker-init /usr/bin/docker-init
+                    getent group docker >/dev/null 2>&1 || groupadd docker
+                    printf '%s\n' '[Unit]' 'Description=Docker Application Container Engine' 'After=network-online.target' 'Wants=network-online.target' '' '[Service]' 'Type=notify' 'ExecStart=/usr/bin/dockerd' 'ExecReload=/bin/kill -s HUP $MAINPID' 'Restart=always' 'RestartSec=2' 'LimitNOFILE=infinity' 'LimitNPROC=infinity' 'LimitCORE=infinity' 'Delegate=yes' 'KillMode=process' '' '[Install]' 'WantedBy=multi-user.target' > /etc/systemd/system/docker.service
+                  fi
                   
                   mkdir -p /etc/docker
                   systemctl daemon-reload
