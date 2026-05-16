@@ -127,11 +127,11 @@ The following environment variables can be set to override default values in the
 | `API_PORT`               | Port for runner API                                              | `3000`                                     |
 | `LOG_FILE_PATH`          | Path to runner log file                                          | `/var/log/daytona-runner.log`               |
 | `LOG_LEVEL`              | Log level                                                        | `info`                                     |
-| `AWS_ENDPOINT_URL`       | S3-compatible endpoint URL for the declarative builder bucket    | `https://s3.us-east-1.amazonaws.com`        |
-| `AWS_ACCESS_KEY_ID`      | IAM access key for the declarative builder bucket                | (empty — disables declarative builder)     |
-| `AWS_SECRET_ACCESS_KEY`  | IAM secret key for the declarative builder bucket                | (empty — disables declarative builder)     |
-| `AWS_REGION`             | AWS region of the declarative builder bucket                     | `us-east-1`                                |
-| `AWS_DEFAULT_BUCKET`     | Name of the declarative builder bucket                           | `daytona`                                  |
+| `AWS_ENDPOINT_URL`       | S3-compatible endpoint URL | `https://s3.us-east-1.amazonaws.com`        |
+| `AWS_ACCESS_KEY_ID`      | IAM access key | (empty — disables declarative builder)     |
+| `AWS_SECRET_ACCESS_KEY`  | IAM secret key | (empty — disables declarative builder)     |
+| `AWS_REGION`             | AWS region | `us-east-1`                                |
+| `AWS_DEFAULT_BUCKET`     | Name | `daytona`                                  |
 | `SSH_GATEWAY_ENABLE`     | Enable SSH gateway                                               | `true` or `false` (auto-detected)          |
 | `SSH_PUBLIC_KEY`         | SSH gateway public key                                           | Fetched from API                           |
 | `SSH_HOST_KEY_PATH`      | Path to SSH host key                                             | `/etc/ssh/ssh_host_rsa_key`                |
