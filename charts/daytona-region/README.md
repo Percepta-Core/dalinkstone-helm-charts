@@ -9,9 +9,9 @@ Custom regions allow organizations to:
 - Store sandbox snapshots **and declarative-builder build context** in their own S3-compatible storage
 - Maintain data residency by keeping all sandbox data inside their AWS account — the Daytona control plane only sees control metadata, never sandbox content
 
-## Architecture (BYOC)
+## Architecture (CMC/BYOC)
 
-A BYOC region lives entirely in the customer's AWS account and exchanges only outbound HTTPS with Daytona Cloud:
+A CMC/BYOC region lives entirely in the customer's AWS account and exchanges only outbound HTTPS with Daytona Cloud:
 
 ```
 Daytona Cloud (app.daytona.io)
@@ -161,7 +161,7 @@ helm uninstall my-region
 | `services.snapshotManager.storage.s3.encrypt` | Enable S3 server-side encryption | `false` |
 | `services.snapshotManager.storage.s3.secure` | Use HTTPS for S3 connections | `true` |
 
-## Declarative Builder Setup (BYOC)
+## Declarative Builder Setup (CMC/BYOC)
 
 When a user calls the declarative builder (e.g. `Image.debian_slim('3.12').pip_install(...)`), Daytona uploads the build context to the region's S3 bucket through the **snapshot-manager**, and then each **runner VM** downloads it from the same bucket to perform the `docker build`. If the runner can't read that bucket, snapshot creation will fail at the inspect/build step with an S3 access error.
 
@@ -297,9 +297,7 @@ Your TLS certificate should cover both patterns. Options:
 
 ## Private Registry Authentication (ECR)
 
-Private-image authentication for snapshots is **handled by Daytona's control plane, not by the runner**. The runner has no `DOCKER_AUTH_CONFIG`, no `~/.docker/config.json` lookup, and no `aws ecr get-login-password` code path of its own — searching this chart and `runner/install.sh` confirms it. Pull credentials are obtained centrally per pull and handed to the runner inline with each `INSPECT_SNAPSHOT_IN_REGISTRY` / pull job.
-
-This section is here because the most common BYOC support question — "I added `DOCKER_AUTH_CONFIG` to the runner and it still fails with `no basic auth credentials`" — is a consequence of that design and is not solvable on the runner side. The fix is always to register the registry with Daytona and let the control plane mediate.
+Private-image authentication for snapshots is **handled by Daytona's control plane, not by the runner**. The runner has no `DOCKER_AUTH_CONFIG`, no `~/.docker/config.json` lookup, and no `aws ecr get-login-password` code path of its own. Pull credentials are obtained centrally per pull and handed to the runner inline with each `INSPECT_SNAPSHOT_IN_REGISTRY` / pull job.
 
 ### How the ECR auth flow works
 
@@ -323,7 +321,7 @@ This section is here because the most common BYOC support question — "I added 
    It does NOT consult any local docker auth.
 ```
 
-If step 2, 3, or 4 fails, step 5 still happens but with no token — the runner falls back to anonymous, ECR returns 401, and you see `no basic auth credentials` in the runner job.
+If step 2, 3, or 4 fails, step 5 still happens but with no token. The runner falls back to anonymous, ECR returns 401, and you see `no basic auth credentials` in the runner job.
 
 ### Broker principal: SaaS vs self-hosted
 
@@ -331,7 +329,7 @@ The "broker" in step 3 is whichever IAM principal your Daytona API server runs a
 
 | Deployment | Broker IAM principal | Notes |
 |---|---|---|
-| **Daytona Cloud (SaaS) BYOC** — `app.daytona.io` + this chart in your AWS account | `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker` | Hard-coded broker. Trust policy in your account allows this exact ARN. |
+| **Daytona Cloud (SaaS) CMC/BYOC** — `app.daytona.io` + this chart in your AWS account | `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker` | Hard-coded broker. Trust policy in your account allows this exact ARN. |
 | **Full self-hosted Daytona** — entire stack in your AWS account | The IRSA role attached to your `daytona-api` pods' ServiceAccount | You substitute it in the trust policy. The SaaS broker ARN is irrelevant here. |
 
 This `daytona-region` chart only covers the BYOC case (proxy + snapshot-manager in EKS, API in Daytona Cloud), so the broker is the SaaS broker ARN. If you are running the full self-hosted `daytona` chart instead, see that chart's docs.
@@ -354,7 +352,7 @@ Trust policy. Replace `<YOUR_ORG_ID>` with your Daytona organization ID (visible
 }
 ```
 
-Permissions policy. All four actions are required — `BatchCheckLayerAvailability` and `BatchGetImage` are what `INSPECT_SNAPSHOT_IN_REGISTRY` and the pull path actually call. Dropping any of them produces the same `no basic auth credentials` symptom because Daytona treats a partial-permissions failure as an auth failure.
+Permissions policy. All four actions are required. `BatchCheckLayerAvailability` and `BatchGetImage` are what `INSPECT_SNAPSHOT_IN_REGISTRY` and the pull path actually call. Dropping any of them produces the same `no basic auth credentials` symptom because Daytona treats a partial-permissions failure as an auth failure.
 
 ```json
 {
@@ -382,7 +380,7 @@ At `app.daytona.io/dashboard/registries`:
 2. **Registry URL**: `<account_id>.dkr.ecr.<region>.amazonaws.com` (no scheme, no path)
 3. **Role ARN**: the ARN of the role from step 1
 
-There is **no** password field — credentials are resolved server-side per pull via the AssumeRole flow above. Pasting an `aws ecr get-login-password` output anywhere is not the right shape and won't help.
+There is **no** password field. Credentials are resolved server-side per pull via the AssumeRole flow above. Pasting an `aws ecr get-login-password` output anywhere is not the right shape and won't help.
 
 ### Step 3 — Reference the image in the snapshot
 
@@ -403,7 +401,7 @@ A common debugging instinct is to put a static `DOCKER_AUTH_CONFIG` (or write `~
 1. **`INSPECT_SNAPSHOT_IN_REGISTRY` is not `docker pull`.** It's a Daytona-internal job that queries the registry's HTTP API directly with credentials supplied by the Daytona API. It does not invoke `docker` and does not read docker's local auth state.
 2. **ECR tokens last 12 hours.** Even where docker auth was honored, hardcoding a `DOCKER_AUTH_CONFIG` from `aws ecr get-login-password` would break after the next token rotation. The AssumeRole flow exists specifically so the runner gets a fresh token on every pull.
 
-The fact that manual `aws ecr get-login-password | docker login` followed by `docker pull` works **inside** the runner pod only proves that the pod has IAM permissions to ECR — which is independent of whether Daytona's inspect job has been handed credentials.
+The fact that manual `aws ecr get-login-password | docker login` followed by `docker pull` works **inside** the runner pod only proves that the pod has IAM permissions to ECR.
 
 ### Troubleshooting checklist
 
@@ -417,7 +415,7 @@ In order of likelihood, when snapshot creation from an ECR image fails with `no 
    The registry hostname in your image reference must appear in this list.
 
 2. **Does the role's trust policy reference the right broker?**
-   For SaaS BYOC: `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker`. Anything else (a user's ARN, an old broker ARN, the account root) will cause every AssumeRole to fail.
+   For SaaS CMC/BYOC: `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker`. Anything else (a user's ARN, an old broker ARN, the account root) will cause every AssumeRole to fail.
 
 3. **Does the trust policy's `ExternalId` match your org ID?**
    Off-by-one typos here are silent — they look identical in the dashboard.
@@ -557,7 +555,7 @@ Snapshot creation through `Image.debian_slim(...)` involves both the snapshot-ma
    ssh ubuntu@<runner-ip> \
      "aws s3 ls s3://my-org-daytona-region-us"
    ```
-   If this fails, the IAM policy or the network path is the problem — fix it before touching Daytona.
+   If this fails, the IAM policy or the network path is likely the problem.
 
 4. **Is it the same bucket in both places?** A common failure mode is using one bucket name in the chart values and a different bucket name on the runner. The two must match character-for-character.
 
