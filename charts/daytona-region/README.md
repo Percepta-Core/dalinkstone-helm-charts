@@ -1,13 +1,38 @@
 # Daytona Region Helm Chart
 
-This Helm chart deploys a custom Daytona region - a proxy and snapshot manager for organizations that need to run Daytona sandboxes in their own network/cloud infrastructure.
+This Helm chart deploys a custom Daytona region (a.k.a. **Bring Your Own Compute / Customer Managed Compute**): a proxy and snapshot manager for organizations that run Daytona sandboxes inside their own AWS account while keeping the Daytona control plane (API) hosted by Daytona Cloud.
 
 ## Overview
 
 Custom regions allow organizations to:
 - Run Daytona proxy in their own network for lower latency access to sandboxes
-- Store sandbox snapshots in their own S3-compatible storage
-- Maintain data residency requirements by keeping traffic within their infrastructure
+- Store sandbox snapshots **and declarative-builder build context** in their own S3-compatible storage
+- Maintain data residency by keeping all sandbox data inside their AWS account — the Daytona control plane only sees control metadata, never sandbox content
+
+## Architecture (BYOC)
+
+A BYOC region lives entirely in the customer's AWS account and exchanges only outbound HTTPS with Daytona Cloud:
+
+```
+Daytona Cloud (app.daytona.io)
+  └─ control-plane API
+       ▲
+       │ outbound HTTPS only (region registration, runner heartbeats, control)
+       │
+Customer AWS Account ─────────────────────────────────────────
+  ├─ EKS (this chart)
+  │    ├─ proxy             ← sandbox preview/toolbox traffic
+  │    └─ snapshot-manager  ← S3 read/write for snapshots + build context
+  │
+  ├─ Runner VMs (EC2, installed via runner/install.sh)
+  │    └─ pulls build context tarballs from the same S3 bucket
+  │       (AWS_* env vars in the systemd unit)
+  │
+  └─ S3 bucket   ← single source of truth
+       used by snapshot-manager AND runner VMs
+```
+
+The shared S3 bucket is the key design point: the snapshot-manager service (in EKS) and every runner VM both need read/write to the same bucket, otherwise the declarative builder will report S3 access errors on snapshot inspect/create.
 
 ## How Custom Regions Work
 
@@ -17,15 +42,20 @@ Custom regions allow organizations to:
 
 3. **Proxy Deployment**: The proxy service uses these credentials to authenticate with the Daytona API and route traffic to sandboxes
 
-4. **Snapshot Storage**: The optional snapshot manager provides S3-based storage for sandbox snapshots within your infrastructure
+4. **Snapshot Storage**: The snapshot manager exposes the customer's S3 bucket to runners over HTTPS, so persistent snapshots stay inside the customer's AWS account
+
+5. **Runner Installation**: Runner VMs are installed separately via `runner/install.sh` and configured with the same S3 bucket via `AWS_*` env vars — see [Declarative Builder Setup](#declarative-builder-setup-byoc) below
+
+6. **Private Registry Auth (ECR, GHCR, etc.)**: Authentication for private images is **not** handled by the runner — credentials are obtained centrally by the Daytona control plane and passed to the runner per-pull. For ECR specifically, you register a cross-account IAM role at `app.daytona.io/dashboard/registries` and Daytona's broker assumes it on every pull. See [Private Registry Authentication (ECR)](#private-registry-authentication-ecr) below for the trust policy, permissions policy, and the most common debugging mistakes (including why `DOCKER_AUTH_CONFIG` injection on the runner doesn't help).
 
 ## Prerequisites
 
-- Kubernetes 1.19+
+- Kubernetes 1.19+ (EKS recommended)
 - Helm 3.2.0+
 - A Daytona organization with API access
 - DNS records pointing to your cluster's ingress
-- (Optional) S3-compatible storage for snapshot manager
+- An S3-compatible bucket (required for snapshot manager **and** declarative builder)
+- IAM credentials (or IRSA on EKS) with read/write access to that bucket
 
 ## Installing the Chart
 
@@ -46,7 +76,9 @@ daytonaApiKey: "dtn_your_api_key_here"
 registration:
   enabled: true
 
-# Optional: Snapshot manager for local snapshot storage
+# Enable the snapshot manager and configure the BYOC bucket.
+# IMPORTANT: every runner VM in this region must be installed with AWS_*
+# env vars that point at this same bucket. See runner/README.md.
 services:
   snapshotManager:
     enabled: true
@@ -56,7 +88,7 @@ services:
     storage:
       s3:
         region: "us-east-1"
-        bucket: "my-daytona-snapshots"
+        bucket: "my-org-daytona-region-us"
         accessKey: "AKIAXXXXXXXXXX"
         secretKey: "your-secret-key"
 ```
@@ -116,7 +148,7 @@ helm uninstall my-region
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `services.snapshotManager.enabled` | Enable snapshot manager | `false` |
-| `services.snapshotManager.image.repository` | Image repository | `registry` |
+| `services.snapshotManager.image.repository` | Image repository | `daytonaio/daytona-snapshot-manager` |
 | `services.snapshotManager.service.port` | Service port | `5000` |
 | `services.snapshotManager.ingress.enabled` | Enable ingress | `false` |
 | `services.snapshotManager.ingress.hostname` | Ingress hostname (required if ingress enabled) | `""` |
@@ -124,8 +156,113 @@ helm uninstall my-region
 | `services.snapshotManager.storage.s3.bucket` | S3 bucket name | `""` |
 | `services.snapshotManager.storage.s3.accessKey` | S3 access key (if not using IRSA) | `""` |
 | `services.snapshotManager.storage.s3.secretKey` | S3 secret key (if not using IRSA) | `""` |
-| `services.snapshotManager.storage.s3.encrypt` | Enable S3 encryption | `true` |
-| `services.snapshotManager.storage.s3.secure` | Use HTTPS for S3 | `true` |
+| `services.snapshotManager.storage.s3.existingSecret` | Reference a pre-existing Secret with keys `accessKey`/`secretKey` | `""` |
+| `services.snapshotManager.storage.s3.endpoint` | Custom S3 endpoint (e.g., MinIO) | `""` |
+| `services.snapshotManager.storage.s3.encrypt` | Enable S3 server-side encryption | `false` |
+| `services.snapshotManager.storage.s3.secure` | Use HTTPS for S3 connections | `true` |
+
+## Declarative Builder Setup (BYOC)
+
+When a user calls the declarative builder (e.g. `Image.debian_slim('3.12').pip_install(...)`), Daytona uploads the build context to the region's S3 bucket through the **snapshot-manager**, and then each **runner VM** downloads it from the same bucket to perform the `docker build`. If the runner can't read that bucket, snapshot creation will fail at the inspect/build step with an S3 access error.
+
+This chart configures the snapshot-manager half. Each runner VM configures the matching half via `AWS_*` env vars set before running `runner/install.sh`. The values **must match** — same bucket, same region, credentials that can read and write.
+
+### Step 1 — Create the S3 bucket and an IAM principal
+
+Create one S3 bucket in the same AWS account as your EKS cluster and runner EC2 instances. The bucket stays private to this region.
+
+Minimum IAM policy required by both the snapshot-manager and the runners:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts"
+    ],
+    "Resource": [
+      "arn:aws:s3:::my-org-daytona-region-us",
+      "arn:aws:s3:::my-org-daytona-region-us/*"
+    ]
+  }]
+}
+```
+
+Attach it to either an IAM user (static keys) or an IAM role (IRSA on EKS for the snapshot-manager; EC2 instance profile for the runners).
+
+### Step 2 — Configure the snapshot-manager in this chart
+
+```yaml
+services:
+  snapshotManager:
+    enabled: true
+    ingress:
+      enabled: true
+      hostname: "snapshots.mycompany.daytona.io"
+    storage:
+      s3:
+        region: "us-east-1"
+        bucket: "my-org-daytona-region-us"
+        accessKey: "AKIA..."      # or use existingSecret, or IRSA (see below)
+        secretKey: "..."
+```
+
+### Step 3 — Configure each runner VM with the same bucket
+
+Set the matching `AWS_*` env vars before running `install.sh`:
+
+```bash
+export AWS_REGION="us-east-1"                           # services.snapshotManager.storage.s3.region
+export AWS_DEFAULT_BUCKET="my-org-daytona-region-us"    # services.snapshotManager.storage.s3.bucket
+export AWS_ACCESS_KEY_ID="AKIA..."                      # services.snapshotManager.storage.s3.accessKey
+export AWS_SECRET_ACCESS_KEY="..."                      # services.snapshotManager.storage.s3.secretKey
+export AWS_ENDPOINT_URL="https://s3.us-east-1.amazonaws.com"
+
+curl -sSL https://download.daytona.io/install.sh | sudo -E bash
+```
+
+`sudo -E` preserves the env vars through the sudo boundary. See [`runner/README.md` → Declarative Builder Configuration](../../runner/README.md#declarative-builder-configuration) for the full reference.
+
+### Step 4 — Verify
+
+From any SDK environment that can target the region:
+
+```python
+from daytona import Daytona, Image, CreateSnapshotParams
+
+daytona = Daytona()
+image = Image.debian_slim("3.12").pip_install(["requests"])
+daytona.snapshot.create(
+    CreateSnapshotParams(name="byoc-builder-smoke", image=image),
+    on_logs=print,
+)
+```
+
+If the snapshot reaches `active`, both halves are working. If it fails, see the troubleshooting section below.
+
+### Using IRSA / instance profiles instead of static keys
+
+**Snapshot-manager (EKS, via IRSA):** leave `accessKey`/`secretKey` blank and annotate the ServiceAccount:
+
+```yaml
+services:
+  snapshotManager:
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/daytona-region-snapshot-manager"
+    storage:
+      s3:
+        region: "us-east-1"
+        bucket: "my-org-daytona-region-us"
+```
+
+**Runners (EC2 instance profile):** attach the IAM policy to the instance profile of the runner's launch template, then run `install.sh` with `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` left empty. The AWS SDK on the runner will pick up instance-metadata credentials.
 
 ### Registration Configuration
 
@@ -157,6 +294,141 @@ Your TLS certificate should cover both patterns. Options:
 1. **cert-manager**: Automatically provisions certificates
 2. **Self-signed**: Set `services.proxy.ingress.selfSigned: true`
 3. **Custom certificate**: Provide via `services.proxy.ingress.secrets`
+
+## Private Registry Authentication (ECR)
+
+Private-image authentication for snapshots is **handled by Daytona's control plane, not by the runner**. The runner has no `DOCKER_AUTH_CONFIG`, no `~/.docker/config.json` lookup, and no `aws ecr get-login-password` code path of its own — searching this chart and `runner/install.sh` confirms it. Pull credentials are obtained centrally per pull and handed to the runner inline with each `INSPECT_SNAPSHOT_IN_REGISTRY` / pull job.
+
+This section is here because the most common BYOC support question — "I added `DOCKER_AUTH_CONFIG` to the runner and it still fails with `no basic auth credentials`" — is a consequence of that design and is not solvable on the runner side. The fix is always to register the registry with Daytona and let the control plane mediate.
+
+### How the ECR auth flow works
+
+```
+1. SDK / Dashboard creates a snapshot from image
+     <account>.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>
+
+2. Daytona API matches the image's registry hostname to a registered
+   registry in your org (added at /dashboard/registries → Amazon ECR).
+
+3. The API's "broker" principal calls sts:AssumeRole into the role ARN
+   you registered, using your organization ID as ExternalId.
+
+4. The assumed-role credentials are used to call
+   ecr:GetAuthorizationToken, returning a short-lived registry token.
+
+5. The API queues an INSPECT_SNAPSHOT_IN_REGISTRY (and later, pull) job
+   for a runner. The token is attached to that job payload.
+
+6. The runner uses the supplied token for HEAD/GET against the registry.
+   It does NOT consult any local docker auth.
+```
+
+If step 2, 3, or 4 fails, step 5 still happens but with no token — the runner falls back to anonymous, ECR returns 401, and you see `no basic auth credentials` in the runner job.
+
+### Broker principal: SaaS vs self-hosted
+
+The "broker" in step 3 is whichever IAM principal your Daytona API server runs as. There are two cases:
+
+| Deployment | Broker IAM principal | Notes |
+|---|---|---|
+| **Daytona Cloud (SaaS) BYOC** — `app.daytona.io` + this chart in your AWS account | `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker` | Hard-coded broker. Trust policy in your account allows this exact ARN. |
+| **Full self-hosted Daytona** — entire stack in your AWS account | The IRSA role attached to your `daytona-api` pods' ServiceAccount | You substitute it in the trust policy. The SaaS broker ARN is irrelevant here. |
+
+This `daytona-region` chart only covers the BYOC case (proxy + snapshot-manager in EKS, API in Daytona Cloud), so the broker is the SaaS broker ARN. If you are running the full self-hosted `daytona` chart instead, see that chart's docs.
+
+### Step 1 — Create the ECR puller role in your AWS account
+
+Trust policy. Replace `<YOUR_ORG_ID>` with your Daytona organization ID (visible in the dashboard URL as `/dashboard/<orgId>/...`).
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "AWS": "arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker" },
+    "Action": "sts:AssumeRole",
+    "Condition": {
+      "StringEquals": { "sts:ExternalId": "<YOUR_ORG_ID>" }
+    }
+  }]
+}
+```
+
+Permissions policy. All four actions are required — `BatchCheckLayerAvailability` and `BatchGetImage` are what `INSPECT_SNAPSHOT_IN_REGISTRY` and the pull path actually call. Dropping any of them produces the same `no basic auth credentials` symptom because Daytona treats a partial-permissions failure as an auth failure.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ecr:GetAuthorizationToken",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage"
+    ],
+    "Resource": "*"
+  }]
+}
+```
+
+`ecr:GetAuthorizationToken` requires `Resource: "*"`. The other three can be scoped to a specific repository ARN if you want (`arn:aws:ecr:<region>:<account>:repository/<repo>`).
+
+### Step 2 — Register the registry in Daytona
+
+At `app.daytona.io/dashboard/registries`:
+
+1. **Add Registry** → **Amazon ECR** tab
+2. **Registry URL**: `<account_id>.dkr.ecr.<region>.amazonaws.com` (no scheme, no path)
+3. **Role ARN**: the ARN of the role from step 1
+
+There is **no** password field — credentials are resolved server-side per pull via the AssumeRole flow above. Pasting an `aws ecr get-login-password` output anywhere is not the right shape and won't help.
+
+### Step 3 — Reference the image in the snapshot
+
+The image string must use the **same registry hostname** registered in step 2, character-for-character. ECR is strict about this:
+
+```
+123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo/my-image:1.0.0     [ok]
+123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo/my-image:latest    [rejected: 'latest' tag is not allowed]
+ecr.aws/123456789012/my-repo/my-image:1.0.0                             [rejected: wrong hostname format]
+```
+
+If the hostname doesn't match a registered registry, Daytona has no role to assume and falls through to anonymous pull.
+
+### Why `DOCKER_AUTH_CONFIG` injection doesn't fix this
+
+A common debugging instinct is to put a static `DOCKER_AUTH_CONFIG` (or write `~/.docker/config.json`) inside the runner pod and assume `docker pull` will pick it up. Two reasons it doesn't help:
+
+1. **`INSPECT_SNAPSHOT_IN_REGISTRY` is not `docker pull`.** It's a Daytona-internal job that queries the registry's HTTP API directly with credentials supplied by the Daytona API. It does not invoke `docker` and does not read docker's local auth state.
+2. **ECR tokens last 12 hours.** Even where docker auth was honored, hardcoding a `DOCKER_AUTH_CONFIG` from `aws ecr get-login-password` would break after the next token rotation. The AssumeRole flow exists specifically so the runner gets a fresh token on every pull.
+
+The fact that manual `aws ecr get-login-password | docker login` followed by `docker pull` works **inside** the runner pod only proves that the pod has IAM permissions to ECR — which is independent of whether Daytona's inspect job has been handed credentials.
+
+### Troubleshooting checklist
+
+In order of likelihood, when snapshot creation from an ECR image fails with `no basic auth credentials`:
+
+1. **Is the registry actually registered?**
+   ```
+   curl -H "Authorization: Bearer $DAYTONA_API_KEY" \
+     https://app.daytona.io/api/docker-registries | jq
+   ```
+   The registry hostname in your image reference must appear in this list.
+
+2. **Does the role's trust policy reference the right broker?**
+   For SaaS BYOC: `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker`. Anything else (a user's ARN, an old broker ARN, the account root) will cause every AssumeRole to fail.
+
+3. **Does the trust policy's `ExternalId` match your org ID?**
+   Off-by-one typos here are silent — they look identical in the dashboard.
+
+4. **Do all four ECR actions exist on the permissions policy?**
+   `GetAuthorizationToken` + `BatchCheckLayerAvailability` + `GetDownloadUrlForLayer` + `BatchGetImage`. Missing any one of them produces the same error as missing all of them.
+
+5. **Does the image string use the exact registered hostname?**
+   `<account>.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>`. Even small variations (port suffix, alias) break the match.
+
+6. **CloudTrail check** — if everything above looks right, look for the `AssumeRole` call in CloudTrail in the registry's account. The trust policy can be hardened with a `StringLike` on `sts:RoleSessionName` of `daytona-<orgId>-*` so these calls are easy to filter.
 
 ## S3 Authentication for Snapshot Manager
 
@@ -242,6 +514,52 @@ kubectl logs -l app.kubernetes.io/component=snapshot-manager
 ```
 
 Verify S3 credentials and bucket permissions.
+
+### ECR snapshot creation fails with `no basic auth credentials`
+
+The runner's `INSPECT_SNAPSHOT_IN_REGISTRY` job is not the right layer to look at — it has no ECR-auth code path of its own. Credentials are obtained centrally by the Daytona API via `sts:AssumeRole` into a role you register, and handed to the runner per-job. If that flow breaks, the runner has nothing to fall back on and the inspect call goes anonymous.
+
+Common causes, in order:
+
+1. **The registry isn't registered.** `app.daytona.io/dashboard/registries` must list the ECR registry hostname. If it doesn't, Daytona has no role ARN to assume.
+2. **The trust policy doesn't reference Daytona's broker.** For SaaS BYOC, the principal in your role's trust policy must be `arn:aws:iam::967657494466:role/DaytonaEcrCredentialBroker`.
+3. **The `ExternalId` in the trust policy isn't your organization ID.** Subtle and silent.
+4. **The image reference doesn't match the registered hostname.** Daytona matches by exact registry hostname; a typo or aliasing produces an anonymous pull.
+5. **Permissions policy is incomplete.** All four of `ecr:GetAuthorizationToken`, `ecr:BatchCheckLayerAvailability`, `ecr:GetDownloadUrlForLayer`, `ecr:BatchGetImage` are required.
+
+What does **not** fix this, despite being the most common first attempt:
+
+- Putting a manual `DOCKER_AUTH_CONFIG` on the runner pod/DaemonSet (the inspect job doesn't read it).
+- Running `aws ecr get-login-password | docker login` inside the runner pod (only affects local `docker pull`, not Daytona's inspect job).
+- Attaching IRSA / instance-profile ECR permissions to the runner itself (the runner isn't the principal making the ECR call — the API is).
+
+Full configuration and trust/permissions policy templates are in [Private Registry Authentication (ECR)](#private-registry-authentication-ecr) above.
+
+### Declarative builder fails with S3 errors
+
+Snapshot creation through `Image.debian_slim(...)` involves both the snapshot-manager (in EKS) **and** each runner VM. Both must read/write the same S3 bucket. Check in this order:
+
+1. **Did the snapshot-manager start cleanly?**
+   ```bash
+   kubectl logs -l app.kubernetes.io/component=snapshot-manager --tail=200
+   ```
+   Look for `403 Forbidden`, `NoSuchBucket`, or missing-credential errors at startup. If the pod is in `CrashLoopBackOff`, the chart values under `services.snapshotManager.storage.s3.*` are the place to fix it.
+
+2. **Does each runner have matching `AWS_*` env vars?**
+   ```bash
+   ssh ubuntu@<runner-ip> \
+     "sudo grep -E '^Environment=AWS_' /etc/systemd/system/daytona-runner.service"
+   ```
+   The five `AWS_*` lines must point at the **same bucket / region** as `services.snapshotManager.storage.s3.*` in this chart. Empty `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are valid only when the runner EC2 instance profile carries the matching IAM policy.
+
+3. **Can the runner reach the bucket on its own?**
+   ```bash
+   ssh ubuntu@<runner-ip> \
+     "aws s3 ls s3://my-org-daytona-region-us"
+   ```
+   If this fails, the IAM policy or the network path is the problem — fix it before touching Daytona.
+
+4. **Is it the same bucket in both places?** A common failure mode is using one bucket name in the chart values and a different bucket name on the runner. The two must match character-for-character.
 
 ## Support
 

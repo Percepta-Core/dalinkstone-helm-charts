@@ -49,6 +49,71 @@ sudo systemctl stop daytona-runner
 
 For more details and troubleshooting, visit [Daytona Runner Installation Docs](https://docs.daytona.io/docs/runner/installation).
 
+## Declarative Builder Configuration
+
+The runner downloads declarative-builder build-context tarballs from an S3-compatible bucket. If the `AWS_*` env vars below are not set on the runner, **snapshot creation via the declarative builder will fail with an S3 access error**.
+
+In a Customer Managed Compute (BYOC) region, the runner reads from the **same bucket** the region's snapshot-manager service writes to. Set the runner's `AWS_*` env vars to match the values configured under `services.snapshotManager.storage.s3.*` in your `daytona-region` chart.
+
+| Runner env var (set before `install.sh`) | Must match in `daytona-region` values |
+|------------------------------------------|----------------------------------------|
+| `AWS_DEFAULT_BUCKET` | `services.snapshotManager.storage.s3.bucket` |
+| `AWS_REGION` | `services.snapshotManager.storage.s3.region` |
+| `AWS_ACCESS_KEY_ID` | `services.snapshotManager.storage.s3.accessKey` (or the IAM identity behind `existingSecret` / IRSA) |
+| `AWS_SECRET_ACCESS_KEY` | `services.snapshotManager.storage.s3.secretKey` (or the IAM identity behind `existingSecret` / IRSA) |
+| `AWS_ENDPOINT_URL` | `services.snapshotManager.storage.s3.endpoint` (only for non-AWS S3); default `https://s3.<region>.amazonaws.com` |
+
+### Install with builder enabled
+
+```bash
+export API_URL="https://app.daytona.io"
+export API_KEY="dtn_..."
+
+# Same bucket / credentials as services.snapshotManager.storage.s3.* in daytona-region
+export AWS_REGION="us-east-1"
+export AWS_DEFAULT_BUCKET="my-org-daytona-region-us"
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_ENDPOINT_URL="https://s3.us-east-1.amazonaws.com"
+
+curl -sSL https://download.daytona.io/install.sh | sudo -E bash
+```
+
+`sudo -E` preserves the env vars so they reach the systemd unit. If the runner is an EC2 instance with an instance profile carrying S3 access, leave `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` blank — the AWS SDK picks up instance-metadata credentials.
+
+### Verify
+
+```bash
+sudo grep -E '^Environment=AWS_' /etc/systemd/system/daytona-runner.service
+```
+
+All five `AWS_*` lines should be populated (or empty if you're relying on an instance profile). To change values after install, edit the unit file, then `sudo systemctl daemon-reload && sudo systemctl restart daytona-runner`.
+
+### IAM policy
+
+Minimum policy required against the bucket:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts"
+    ],
+    "Resource": [
+      "arn:aws:s3:::<your-bucket>",
+      "arn:aws:s3:::<your-bucket>/*"
+    ]
+  }]
+}
+```
+
 ## Override with env vars
 The following environment variables can be set to override default values in the install script:
 
@@ -62,11 +127,11 @@ The following environment variables can be set to override default values in the
 | `API_PORT`               | Port for runner API                                              | `3000`                                     |
 | `LOG_FILE_PATH`          | Path to runner log file                                          | `/var/log/daytona-runner.log`               |
 | `LOG_LEVEL`              | Log level                                                        | `info`                                     |
-| `AWS_ENDPOINT_URL`       | AWS S3 endpoint URL                                              | `https://s3.us-east-1.amazonaws.com`        |
-| `AWS_ACCESS_KEY_ID`      | AWS access key ID                                                | (empty)                                    |
-| `AWS_SECRET_ACCESS_KEY`  | AWS secret access key                                            | (empty)                                    |
-| `AWS_REGION`             | AWS region                                                       | `us-east-1`                                |
-| `AWS_DEFAULT_BUCKET`     | AWS S3 bucket name                                               | `daytona`                                  |
+| `AWS_ENDPOINT_URL`       | S3-compatible endpoint URL for the declarative builder bucket    | `https://s3.us-east-1.amazonaws.com`        |
+| `AWS_ACCESS_KEY_ID`      | IAM access key for the declarative builder bucket                | (empty — disables declarative builder)     |
+| `AWS_SECRET_ACCESS_KEY`  | IAM secret key for the declarative builder bucket                | (empty — disables declarative builder)     |
+| `AWS_REGION`             | AWS region of the declarative builder bucket                     | `us-east-1`                                |
+| `AWS_DEFAULT_BUCKET`     | Name of the declarative builder bucket                           | `daytona`                                  |
 | `SSH_GATEWAY_ENABLE`     | Enable SSH gateway                                               | `true` or `false` (auto-detected)          |
 | `SSH_PUBLIC_KEY`         | SSH gateway public key                                           | Fetched from API                           |
 | `SSH_HOST_KEY_PATH`      | Path to SSH host key                                             | `/etc/ssh/ssh_host_rsa_key`                |

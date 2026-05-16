@@ -175,6 +175,13 @@ services:
       extraRules: []
       tls: true
     # Storage configuration
+    #
+    # This is the customer-owned S3-compatible bucket the snapshot-manager
+    # writes to and reads from. The Daytona declarative builder pulls
+    # build-context tarballs from the SAME bucket — every runner VM in this
+    # region must have AWS_* env vars pointing at the same bucket / region
+    # with credentials that can read and write. See `runner/README.md` and
+    # `charts/daytona-region/README.md` for the matching runner-side setup.
     storage:
       # S3 storage configuration
       s3:
