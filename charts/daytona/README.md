@@ -77,6 +77,8 @@ graph TB
 - Helm 3.2.0+
 - At least one worker node labeled `daytona-sandbox-c=true` for the runner DaemonSet to schedule on (see [Kubernetes Runner Autoscaling](#kubernetes-runner-autoscaling-runner--runner-manager) for the full node pool setup).
 
+- Runners must use Ubuntu 24.04 OS
+
 ## Installing the Chart
 
 To install the chart with the release name `daytona`:
@@ -643,7 +645,7 @@ kubectl port-forward svc/daytona-pgadmin4 8083:80
 
 ## Runner Deployment
 
-After successfully deploying the Daytona platform, you can deploy runners on clean Linux hosts to execute AI workloads:
+After successfully deploying the Daytona platform, you can deploy runners on clean Linux (Ubuntu 24.04 OS) hosts to execute AI workloads:
 
 ### 1. Generate Admin API Key
 ```bash

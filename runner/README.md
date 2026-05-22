@@ -3,7 +3,7 @@ To install and register a Daytona Runner on your system, follow these steps:
 
 ## Prerequisites
 
-- **Supported OS Architecture:** AMD64/x86_64
+- **Supported OS Architecture:** AMD64/x86_64, Ubuntu 24.04 OS
 - **Docker:** The script will install Docker if not present.
 - **Systemd:** Required for service management.
 
