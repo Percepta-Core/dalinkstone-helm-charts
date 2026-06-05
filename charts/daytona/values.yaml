@@ -567,6 +567,24 @@ services:
       #     - "10.0.0.2"
       #     - "8.8.8.8"
       dns: []
+      # Registries Docker is allowed to pull from without TLS validation.
+      # Use this when:
+      #   - your internal registry is plain HTTP, or
+      #   - it uses HTTPS with a self-signed/internal CA and you'd rather
+      #     not inject that CA into the host trust store on every node.
+      # Each entry is "host" or "host:port". Setting this lets you avoid
+      # issuing or distributing TLS certs for internal sandbox image hosts
+      # entirely.
+      # Example:
+      #   insecureRegistries:
+      #     - "harbor.internal.example.com"     # HTTPS, self-signed cert
+      #     - "registry.internal.svc:5000"      # plain HTTP
+      #     - "10.0.0.5:5000"                   # IP form
+      # NOTE: if registryProxy.enabled=true above, you almost always also
+      # want to list the proxy's localhost endpoint here (e.g.
+      # "localhost:5000") so Docker doesn't try to TLS-validate the
+      # in-pod socat forwarder.
+      insecureRegistries: []
       # Airgapped mode - use pre-packaged dependencies instead of downloading from internet
       airgapped:
         enabled: false

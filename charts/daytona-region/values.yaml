@@ -27,7 +27,7 @@ baseDomain: ""
 snapshotManagerUrl: ""
 
 # Daytona API configuration (required)
-daytonaApiUrl: ""   # e.g., "https://api.daytona.io/api"
+daytonaApiUrl: ""   # e.g., "https://app.daytona.io/api"
 daytonaApiKey: ""   # API key for authentication
 
 # Service-specific configurations
@@ -179,6 +179,13 @@ services:
       extraRules: []
       tls: true
     # Storage configuration
+    #
+    # This is the customer-owned S3-compatible bucket the snapshot-manager
+    # writes to and reads from. The Daytona declarative builder pulls
+    # build-context tarballs from the SAME bucket — every runner VM in this
+    # region must have AWS_* env vars pointing at the same bucket / region
+    # with credentials that can read and write. See `runner/README.md` and
+    # `charts/daytona-region/README.md` for the matching runner-side setup.
     storage:
       # S3 storage configuration
       s3:
@@ -434,7 +441,31 @@ services:
       enabled: true
       image: "ubuntu:22.04"
       xfsStorageSize: "50G"
+      # DNS resolvers added to /etc/docker/daemon.json. All containers started
+      # by this Docker daemon will use these resolvers.
+      # Example:
+      #   dns:
+      #     - "10.0.0.2"
+      #     - "8.8.8.8"
       dns: []
+      # Registries Docker is allowed to pull from without TLS validation.
+      # Use this when:
+      #   - your internal registry is plain HTTP, or
+      #   - it uses HTTPS with a self-signed/internal CA and you'd rather
+      #     not inject that CA into the host trust store on every node.
+      # Each entry is "host" or "host:port". Setting this lets you avoid
+      # issuing or distributing TLS certs for internal sandbox image hosts
+      # entirely.
+      # Example:
+      #   insecureRegistries:
+      #     - "harbor.internal.example.com"     # HTTPS, self-signed cert
+      #     - "registry.internal.svc:5000"      # plain HTTP
+      #     - "10.0.0.5:5000"                   # IP form
+      # NOTE: if registryProxy.enabled=true below, you almost always also
+      # want to list the proxy's localhost endpoint here (e.g.
+      # "localhost:5000") so Docker doesn't try to TLS-validate the
+      # in-pod socat forwarder.
+      insecureRegistries: []
       airgapped:
         enabled: false
         packagesImage: "daytonaio/daytona-runner-packages:v0.0.2"

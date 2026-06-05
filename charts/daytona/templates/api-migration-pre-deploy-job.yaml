@@ -26,6 +26,30 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       restartPolicy: Never
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for postgres at ${DB_HOST}:${DB_PORT}..."
+              until nc -z -w 2 "${DB_HOST}" "${DB_PORT}"; do
+                sleep 3
+              done
+              echo "postgres reachable"
+          env:
+            {{- if .Values.postgresql.enabled }}
+            - name: DB_HOST
+              value: {{ printf "%s-postgresql" .Release.Name | quote }}
+            - name: DB_PORT
+              value: "5432"
+            {{- else }}
+            - name: DB_HOST
+              value: {{ .Values.externalDatabase.host | default (.Values.services.api.env.DB_HOST | default "") | quote }}
+            - name: DB_PORT
+              value: {{ .Values.externalDatabase.port | default (.Values.services.api.env.DB_PORT | default "5432") | quote }}
+            {{- end }}
       containers:
         - name: migration
           securityContext:
