@@ -1,5 +1,17 @@
 # Daytona BYOC on GCP — Customer Journey Reproducer
 
+> **⚠️ LEGACY / REPRO FLOW**
+> These scripts are **operator-side IaC reproductions** of the BYOC customer
+> journey on Google Cloud, plus a bare-metal bootstrap (`install.sh`) aid used
+> while diagnosing single-VM and pre-GKE friction. They are **not** the
+> canonical install path on AKS / EKS / GKE.
+>
+> The canonical Kubernetes-native install is `helm install daytona-region
+> ./charts/daytona-region/` — see
+> [`charts/daytona-region/QUICKSTART.md`](../../charts/daytona-region/QUICKSTART.md)
+> for the end-to-end walkthrough. The `install.sh` references in this directory
+> describe the deprecated bare-metal flow used by the reproducers only.
+
 This reproducer walks through what a real Daytona Cloud customer experiences
 when adopting **Customer Managed Compute (BYOC)** on Google Cloud. The goal
 is to ship a working end-to-end deployment AND make the friction points

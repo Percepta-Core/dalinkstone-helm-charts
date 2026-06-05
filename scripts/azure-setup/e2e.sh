@@ -23,9 +23,9 @@ STAGING="${STAGING:-false}"
 
 command -v python3 >/dev/null 2>&1 || { echo "python3 not installed"; exit 1; }
 python3 -c "import daytona" 2>/dev/null || {
-  echo "Installing daytona SDK (pip install daytona)..."
-  python3 -m pip install --quiet --user daytona || {
-    echo "failed to install daytona SDK; try: pip install daytona"
+  echo "Installing daytona SDK (pip install 'daytona==0.183.*')..."
+  python3 -m pip install --quiet --user "daytona==0.183.*" || {
+    echo "failed to install daytona SDK; try: pip install 'daytona==0.183.*'"
     exit 1
   }
 }

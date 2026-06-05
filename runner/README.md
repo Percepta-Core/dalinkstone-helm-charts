@@ -1,93 +1,89 @@
 # Runner Installation
-To install and register a Daytona Runner on your system, follow these steps:
 
-## Prerequisites
+> **⚠️ LEGACY FILE.** The CANONICAL Daytona BYOC install path is the Helm chart at
+> [`charts/daytona-region/`](../charts/daytona-region/) (see [QUICKSTART.md](../charts/daytona-region/QUICKSTART.md)).
+> The chart installs the runner as a privileged Kubernetes DaemonSet that bootstraps
+> Docker + Sysbox on each node from inside the pod (via `nsenter`).
+>
+> The `install.sh`-on-VM flow documented later in this file is retained for the
+> historical bare-metal use case ONLY (single-host, no cluster, non-K8s deployments).
+> It is **not** the supported path on AKS / EKS / GKE and must not be referenced
+> as the canonical install in any chart README, NOTES.txt, or values.yaml.
 
-- **Supported OS Architecture:** AMD64/x86_64
-- **Docker:** The script will install Docker if not present.
-- **Systemd:** Required for service management.
+## Canonical install (Kubernetes-native)
 
-## Installation Steps
-
-1. **Run the Runner Install Script**
-
-```bash
-curl -sSL https://download.daytona.io/install.sh | sudo bash
-```
-
-The script will prompt you for:
-- Daytona API URL
-- Daytona Admin API Key
-- System resource allocation (CPU, memory, disk)
-- Domain name for the runner
-- Runner API URL
-- Optional proxy URL, region, runner capacity, and runner API key
-
-2. **Automatic Steps Performed by the Script**
-
-- Checks system architecture
-- Downloads the Daytona runner binary
-- Installs Docker if missing
-- Registers the runner with the Daytona API
-- Creates and enables a systemd service for the runner
-- Starts the runner service
-
-## Managing the Runner Service
-
-- **Check status:**
-```bash
-sudo systemctl status daytona-runner
-```
-- **View logs:**
-```bash
-sudo tail -f /var/log/daytona-runner.log
-```
-- **Stop service:**
-```bash
-sudo systemctl stop daytona-runner
-```
-
-For more details and troubleshooting, visit [Daytona Runner Installation Docs](https://docs.daytona.io/docs/runner/installation).
-
-## Declarative Builder Configuration
-
-The runner downloads declarative-builder build-context tarballs from an S3-compatible bucket. If the `AWS_*` env vars below are not set on the runner, **snapshot creation via the declarative builder will fail with an S3 access error**.
-
-In a Customer Managed Compute (BYOC) region, the runner reads from the **same bucket** the region's snapshot-manager service writes to. Set the runner's `AWS_*` env vars to match the values configured under `services.snapshotManager.storage.s3.*` in your `daytona-region` chart.
-
-| Runner env var (set before `install.sh`) | Must match in `daytona-region` values |
-|------------------------------------------|----------------------------------------|
-| `AWS_DEFAULT_BUCKET` | `services.snapshotManager.storage.s3.bucket` |
-| `AWS_REGION` | `services.snapshotManager.storage.s3.region` |
-| `AWS_ACCESS_KEY_ID` | `services.snapshotManager.storage.s3.accessKey` (or the IAM identity behind `existingSecret` / IRSA) |
-| `AWS_SECRET_ACCESS_KEY` | `services.snapshotManager.storage.s3.secretKey` (or the IAM identity behind `existingSecret` / IRSA) |
-| `AWS_ENDPOINT_URL` | `services.snapshotManager.storage.s3.endpoint` (only for non-AWS S3); default `https://s3.<region>.amazonaws.com` |
-
-### Install with builder enabled
+The runner is deployed by `charts/daytona-region/`. It runs as a DaemonSet pod whose
+`docker-installer` sidecar `nsenter`s into the host to install Docker + Sysbox, and
+whose `runner` main container runs `daytona-runner` directly as a Kubernetes-native
+container. No host script, no SSH.
 
 ```bash
-export API_URL="https://app.daytona.io"
-export API_KEY="dtn_..."
-
-# Same bucket / credentials as services.snapshotManager.storage.s3.* in daytona-region
-export AWS_REGION="us-east-1"
-export AWS_DEFAULT_BUCKET="my-org-daytona-region-us"
-export AWS_ACCESS_KEY_ID="AKIA..."
-export AWS_SECRET_ACCESS_KEY="..."
-export AWS_ENDPOINT_URL="https://s3.us-east-1.amazonaws.com"
-
-curl -sSL https://download.daytona.io/install.sh | sudo -E bash
+helm install daytona-region oci://daytonaio/charts/daytona-region \
+  -n daytona --create-namespace \
+  --set regionName=<region> \
+  --set proxyUrl=https://proxy.<your-domain> \
+  --set daytonaApiUrl=https://<base-domain>/api \
+  --set daytonaApiKey=<admin-api-key> \
+  --set services.runner.mainContainer.enabled=true
 ```
 
-`sudo -E` preserves the env vars so they reach the systemd unit. If the runner is an EC2 instance with an instance profile carrying S3 access, leave `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` blank — the AWS SDK picks up instance-metadata credentials.
+For AWS-specific values (S3, IRSA, ECR), see
+[`charts/daytona-region/README.md`](../charts/daytona-region/README.md#declarative-builder-setup-byoc).
+
+## Declarative Builder Configuration (Kubernetes-native)
+
+The runner downloads declarative-builder build-context tarballs from an S3-compatible bucket. In a Customer Managed Compute (BYOC) region, the runner reads from the **same bucket** the region's snapshot-manager writes to. Set the runner's `AWS_*` values to match `services.snapshotManager.storage.s3.*`:
+
+| Runner key (in `services.runner.env.*`) | Must match in `daytona-region` values                |
+|------------------------------------------|----------------------------------------------------|
+| `AWS_DEFAULT_BUCKET`                     | `services.snapshotManager.storage.s3.bucket`        |
+| `AWS_REGION`                             | `services.snapshotManager.storage.s3.region`        |
+| `AWS_ACCESS_KEY_ID`                      | `services.snapshotManager.storage.s3.accessKey` (or IRSA — see below) |
+| `AWS_SECRET_ACCESS_KEY`                  | `services.snapshotManager.storage.s3.secretKey` (or IRSA — see below) |
+| `AWS_ENDPOINT_URL`                       | `services.snapshotManager.storage.s3.endpoint` (only for non-AWS S3); default `https://s3.<region>.amazonaws.com` |
+
+### Static credential mode (default)
+
+```yaml
+services:
+  runner:
+    aws:
+      credentialMode: static
+    env:
+      AWS_REGION: "us-east-1"
+      AWS_DEFAULT_BUCKET: "my-org-daytona-region-us"
+      AWS_ACCESS_KEY_ID: "AKIA..."
+      AWS_SECRET_ACCESS_KEY: "..."
+      AWS_ENDPOINT_URL: "https://s3.us-east-1.amazonaws.com"
+```
+
+### IRSA mode (EKS)
+
+```yaml
+services:
+  runner:
+    aws:
+      credentialMode: irsa
+      allowEmptyStaticKeyShim: true   # until upstream daytona-runner gains default-chain support
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/daytona-runner"
+    env:
+      AWS_REGION: "us-east-1"
+      AWS_DEFAULT_BUCKET: "my-org-daytona-region-us"
+      AWS_ENDPOINT_URL: "https://s3.us-east-1.amazonaws.com"
+```
+
+See [`docs/upstream-issues/runner-irsa-support.md`](../docs/upstream-issues/runner-irsa-support.md) for the upstream gap that `allowEmptyStaticKeyShim` works around.
 
 ### Verify
 
 ```bash
-sudo grep -E '^Environment=AWS_' /etc/systemd/system/daytona-runner.service
+kubectl -n daytona exec daemonset/<release>-daytona-region-runner -c runner -- \
+  env | grep -E '^AWS_'
 ```
 
-All five `AWS_*` lines should be populated (or empty if you're relying on an instance profile). To change values after install, edit the unit file, then `sudo systemctl daemon-reload && sudo systemctl restart daytona-runner`.
+All five `AWS_*` lines should be populated (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` empty if you're using IRSA + the shim).
 
 ### IAM policy
 
@@ -114,27 +110,43 @@ Minimum policy required against the bucket:
 }
 ```
 
-## Override with env vars
-The following environment variables can be set to override default values in the install script:
+For IRSA, attach the policy to the IAM role identified by
+`services.runner.serviceAccount.annotations."eks.amazonaws.com/role-arn"`. The role's
+trust policy must allow `sts:AssumeRoleWithWebIdentity` from the cluster's OIDC
+provider with
+`sub = system:serviceaccount:<namespace>:<release>-daytona-region-runner`.
 
-| Variable Name            | Description                                                      | Default Value / Notes                       |
-|------------------------- |------------------------------------------------------------------|---------------------------------------------|
-| `CONTAINER_RUNTIME`      | Container runtime to use                                         | `sysbox-runc`                              |
-| `API_TOKEN`              | API token for runner                                             | Auto-generated or user-provided            |
-| `TLS_CERT_FILE`          | Path to TLS certificate file                                     | `/etc/letsencrypt/live/$DOMAIN/fullchain.pem` |
-| `TLS_KEY_FILE`           | Path to TLS key file                                             | `/etc/letsencrypt/live/$DOMAIN/privkey.pem`   |
-| `ENABLE_TLS`             | Enable TLS for runner                                            | `false`                                    |
-| `API_PORT`               | Port for runner API                                              | `3000`                                     |
-| `LOG_FILE_PATH`          | Path to runner log file                                          | `/var/log/daytona-runner.log`               |
-| `LOG_LEVEL`              | Log level                                                        | `info`                                     |
-| `AWS_ENDPOINT_URL`       | S3-compatible endpoint URL for the declarative builder bucket    | `https://s3.us-east-1.amazonaws.com`        |
-| `AWS_ACCESS_KEY_ID`      | IAM access key for the declarative builder bucket                | (empty — disables declarative builder)     |
-| `AWS_SECRET_ACCESS_KEY`  | IAM secret key for the declarative builder bucket                | (empty — disables declarative builder)     |
-| `AWS_REGION`             | AWS region of the declarative builder bucket                     | `us-east-1`                                |
-| `AWS_DEFAULT_BUCKET`     | Name of the declarative builder bucket                           | `daytona`                                  |
-| `SSH_GATEWAY_ENABLE`     | Enable SSH gateway                                               | `true` or `false` (auto-detected)          |
-| `SSH_PUBLIC_KEY`         | SSH gateway public key                                           | Fetched from API                           |
-| `SSH_HOST_KEY_PATH`      | Path to SSH host key                                             | `/etc/ssh/ssh_host_rsa_key`                |
-| `SERVER_URL`             | Daytona API URL                                                  | User-provided                              |
+---
 
-You can set these variables before running the install script to customize the runner configuration.
+## LEGACY: bare-metal / non-Kubernetes install (`install.sh`)
+
+> **Not for AKS / EKS / GKE.** Use only on a single Linux VM without a cluster.
+> This path predates the Helm chart and remains for historical compatibility.
+> Operators on Kubernetes should use the canonical flow above.
+
+The script in this directory installs Docker, downloads the `daytona-runner` binary,
+and registers it with the Daytona API as a systemd service on a single host.
+
+### Prerequisites (legacy)
+
+- **Supported OS Architecture:** AMD64/x86_64
+- **Docker:** Installed by the script if absent
+- **Systemd:** Required for service management
+
+### Legacy install command
+
+The historical command is in this file's git history. **Do not link to it from any
+chart README, NOTES.txt, or values.yaml** — the `hack/check-no-install-sh.sh` CI gate
+fails any such reference. If you genuinely need a single-VM install for a development
+laptop, consult Daytona support directly.
+
+### Managing the legacy systemd-installed runner
+
+```bash
+sudo systemctl status daytona-runner
+sudo tail -f /var/log/daytona-runner.log
+sudo systemctl stop daytona-runner
+```
+
+For everything else (clusters, multi-node, production), use the
+[`charts/daytona-region/` Helm chart](../charts/daytona-region/).

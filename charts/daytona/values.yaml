@@ -19,7 +19,7 @@ services:
     image:
       registry: docker.io
       repository: daytonaio/daytona-api
-      tag: "v0.158.4-k8s-amd64" # Will default to Chart.AppVersion
+      tag: "v0.183.0" # explicit pin; otherwise defaults to Chart.AppVersion
       pullPolicy: IfNotPresent
     # Service configuration
     service:
@@ -231,7 +231,7 @@ services:
     image:
       registry: docker.io
       repository: daytonaio/daytona-proxy
-      tag: "v0.139.1-rc.1"
+      tag: "v0.183.0"
       pullPolicy: IfNotPresent
     # Service configuration
     service:
@@ -421,7 +421,7 @@ services:
     image:
       registry: docker.io
       repository: daytonaio/daytona-runner-manager
-      tag: "v0.158.4-k8s-amd64" # Will default to Chart.AppVersion
+      tag: "v0.183.0" # explicit pin; otherwise defaults to Chart.AppVersion
       pullPolicy: IfNotPresent
     # Service configuration
     service:
@@ -495,7 +495,7 @@ services:
     image:
       registry: docker.io
       repository: daytonaio/daytona-runner
-      tag: "v0.158.4-k8s-amd64" # Will default to Chart.AppVersion
+      tag: "v0.183.0" # explicit pin; otherwise defaults to Chart.AppVersion
       pullPolicy: IfNotPresent
     # ServiceAccount configuration
     serviceAccount:

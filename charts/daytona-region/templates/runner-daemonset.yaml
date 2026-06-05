@@ -119,19 +119,54 @@ spec:
               ls -la /host/tmp/offline-packages/
               {{- end }}
               
-              # First, add registry host entry to host's /etc/hosts for Docker to resolve
-              echo "Adding registry host entry..."
-              nsenter -t 1 -m -u -n -i sh -c '
-                {{- range .Values.services.runner.hostAliases }}
-                if ! grep -q "{{ .ip }}.*{{ index .hostnames 0 }}" /etc/hosts; then
-                  echo "{{ .ip }} {{ range .hostnames }}{{ . }} {{ end }}" >> /etc/hosts
-                  echo "Added host entry: {{ .ip }} {{ range .hostnames }}{{ . }} {{ end }}"
-                else
-                  echo "Host entry already exists for {{ index .hostnames 0 }}"
+              # Shared add_host_alias() function — used by BOTH the static hostAliases loop
+              # below and the dynamicHostAliases loop. The awk-based tmp-merge writes the
+              # entry into a temp file and atomically renames it onto /etc/hosts via nsenter,
+              # so the host file is never half-written. Idempotent: re-running with the same
+              # (ip,name) pair leaves /etc/hosts in a deduplicated state — existing entries
+              # for that hostname are overwritten in place, new entries are appended exactly
+              # once.
+              echo "Setting up host aliases..."
+              add_host_alias() {
+                ip="$1"; name="$2"
+                if [ -z "$ip" ] || [ -z "$name" ]; then
+                  echo "[host-alias] WARN: skipping empty ip='$ip' name='$name'" >&2
+                  return 0
                 fi
-                {{- end }}
-                cat /etc/hosts | grep -E "registry|minio" || true
-              '
+                nsenter -t 1 -m -u -n -i sh -c "
+                  awk -v ip=\"$ip\" -v name=\"$name\" '
+                    BEGIN { found=0 }
+                    {
+                      if (\$2 == name) { print ip\" \"name; found=1 }
+                      else { print }
+                    }
+                    END { if (!found) print ip\" \"name }
+                  ' /etc/hosts > /etc/hosts.tmp && mv /etc/hosts.tmp /etc/hosts
+                "
+                echo "[host-alias] set $ip $name"
+              }
+              # Static aliases (explicit ip + hostnames in services.runner.hostAliases)
+              # `squote` shell-quotes the helm-substituted values so a hostname containing
+              # special characters (e.g. quotes or backslashes) cannot break the surrounding
+              # shell context. add_host_alias receives the unquoted contents via positional
+              # arguments and re-quotes them safely with awk -v.
+              {{- range .Values.services.runner.hostAliases }}
+              {{- $ip := .ip -}}
+              {{- range .hostnames }}
+              add_host_alias {{ $ip | squote }} {{ . | squote }}
+              {{- end }}
+              {{- end }}
+              # Dynamic aliases resolved at install time via Kubernetes DNS (services.runner.dockerInstaller.dynamicHostAliases)
+              {{- range .Values.services.runner.dockerInstaller.dynamicHostAliases }}
+              resolved_ip="$(getent hosts {{ . | squote }} | awk '{print $1; exit}')"
+              if [ -n "$resolved_ip" ]; then
+                add_host_alias "$resolved_ip" {{ . | squote }}
+              else
+                echo "[host-alias] WARN: could not resolve {{ . }} via getent hosts" >&2
+              fi
+              {{- end }}
+              # Surface the resulting host entries we care about
+              nsenter -t 1 -m -u -n -i sh -c 'grep -E "registry|minio|snapshot-manager" /etc/hosts || true'
               
               # Enter the host namespace and install Docker + Sysbox
               nsenter -t 1 -m -u -n -i sh <<'EOF'
@@ -716,11 +751,67 @@ spec:
                 done
               done
         {{- end }}
+        {{- if .Values.services.runner.mainContainer.enabled }}
+        # K8s-native runner main container — runs daytona-runner as a privileged Kubernetes
+        # container alongside the host-bootstrap docker-installer + daytona-binary-installer
+        # sidecars. envFrom pulls runner-config (non-secret) + runner-secrets (AWS creds,
+        # API token) + region-config (REGION_ID; optional, populated by the registration hook).
+        # ports api+ssh are exposed both as containerPort and hostPort so they survive
+        # hostNetwork=true and reach the host network namespace.
+        - name: runner
+          image: "{{ include "daytona.imageRegistry" (dict "Values" .Values "serviceRegistry" .Values.services.runner.image.registry) }}/{{ .Values.services.runner.image.repository }}:{{ .Values.services.runner.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.services.runner.image.pullPolicy }}
+          securityContext:
+            privileged: true
+          ports:
+            - name: api
+              containerPort: {{ .Values.services.runner.ports.api }}
+              hostPort: {{ .Values.services.runner.ports.api }}
+            - name: ssh
+              containerPort: {{ .Values.services.runner.ports.ssh }}
+              hostPort: {{ .Values.services.runner.ports.ssh }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "daytona.fullname" . }}-runner-config
+            - secretRef:
+                name: {{ include "daytona.fullname" . }}-runner-secrets
+            - secretRef:
+                name: {{ include "daytona.fullname" . }}-region-config
+                optional: true
+          {{- with .Values.services.runner.extraEnv }}
+          env:
+            {{- include "daytona.tplvalues.render" (dict "value" . "context" $) | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: var-lib-daytona
+              mountPath: /var/lib/daytona
+            {{- if or .Values.services.runner.docker.daemonConfig.enabled (gt (len (default (list) .Values.services.runner.dockerInstaller.insecureRegistries)) 0) }}
+            - name: runner-docker-daemon-config
+              mountPath: /etc/docker/daemon.json
+              subPath: daemon.json
+            {{- end }}
+            {{- with .Values.services.runner.extraVolumeMounts }}
+            {{- include "daytona.tplvalues.render" (dict "value" . "context" $) | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.services.runner.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: host-root
           hostPath:
             path: /
             type: Directory
+        {{- if .Values.services.runner.mainContainer.enabled }}
+        - name: var-lib-daytona
+          hostPath:
+            path: {{ .Values.services.runner.hostPaths.varLibDaytona }}
+            type: DirectoryOrCreate
+        {{- if or .Values.services.runner.docker.daemonConfig.enabled (gt (len (default (list) .Values.services.runner.dockerInstaller.insecureRegistries)) 0) }}
+        - name: runner-docker-daemon-config
+          configMap:
+            name: {{ include "daytona.fullname" . }}-runner-docker-daemon-config
+        {{- end }}
+        {{- end }}
         {{- if .Values.services.runner.extraVolumes }}
         {{- include "daytona.tplvalues.render" (dict "value" .Values.services.runner.extraVolumes "context" $) | nindent 8 }}
         {{- end }}

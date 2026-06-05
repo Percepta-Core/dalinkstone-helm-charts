@@ -24,9 +24,9 @@ Customer AWS Account ───────────────────�
   │    ├─ proxy             ← sandbox preview/toolbox traffic
   │    └─ snapshot-manager  ← S3 read/write for snapshots + build context
   │
-  ├─ Runner VMs (EC2, installed via runner/install.sh)
+  ├─ Runner DaemonSet (this chart, one pod per node in the runner node pool)
   │    └─ pulls build context tarballs from the same S3 bucket
-  │       (AWS_* env vars in the systemd unit)
+  │       (AWS_* env vars from the chart's runner-secrets Secret, or IRSA via the SA)
   │
   └─ S3 bucket   ← single source of truth
        used by snapshot-manager AND runner VMs
@@ -44,7 +44,7 @@ The shared S3 bucket is the key design point: the snapshot-manager service (in E
 
 4. **Snapshot Storage**: The snapshot manager exposes the customer's S3 bucket to runners over HTTPS, so persistent snapshots stay inside the customer's AWS account
 
-5. **Runner Installation**: Runner VMs are installed separately via `runner/install.sh` and configured with the same S3 bucket via `AWS_*` env vars — see [Declarative Builder Setup](#declarative-builder-setup-byoc) below
+5. **Runner Installation**: The runner is deployed by this chart as a privileged DaemonSet that bootstraps Docker and Sysbox on each node via `nsenter` from inside the pod, then runs the `daytona-runner` binary as a Kubernetes-native main container. AWS credentials flow through the chart's `runner-secrets` Secret in `static` credential mode, or via an EKS IRSA-annotated ServiceAccount in `irsa` mode (see `services.runner.aws.credentialMode`). See [Declarative Builder Setup](#declarative-builder-setup-byoc) below
 
 6. **Private Registry Auth (ECR, GHCR, etc.)**: Authentication for private images is **not** handled by the runner — credentials are obtained centrally by the Daytona control plane and passed to the runner per-pull. For ECR specifically, you register a cross-account IAM role at `app.daytona.io/dashboard/registries` and Daytona's broker assumes it on every pull. See [Private Registry Authentication (ECR)](#private-registry-authentication-ecr) below for the trust policy, permissions policy, and the most common debugging mistakes (including why `DOCKER_AUTH_CONFIG` injection on the runner doesn't help).
 
@@ -165,7 +165,7 @@ helm uninstall my-region
 
 When a user calls the declarative builder (e.g. `Image.debian_slim('3.12').pip_install(...)`), Daytona uploads the build context to the region's S3 bucket through the **snapshot-manager**, and then each **runner VM** downloads it from the same bucket to perform the `docker build`. If the runner can't read that bucket, snapshot creation will fail at the inspect/build step with an S3 access error.
 
-This chart configures the snapshot-manager half. Each runner VM configures the matching half via `AWS_*` env vars set before running `runner/install.sh`. The values **must match** — same bucket, same region, credentials that can read and write.
+This chart configures both halves: snapshot-manager and the runner DaemonSet. The runner gets its matching `AWS_*` env vars from the chart's `runner-secrets` Secret (in `static` credential mode) or via IRSA-annotated ServiceAccount (in `irsa` mode). The values for runner and snapshot-manager **must match** — same bucket, same region, credentials that can read and write.
 
 ### Step 1 — Create the S3 bucket and an IAM principal
 
@@ -213,21 +213,24 @@ services:
         secretKey: "..."
 ```
 
-### Step 3 — Configure each runner VM with the same bucket
+### Step 3 — Configure the runner with the same bucket
 
-Set the matching `AWS_*` env vars before running `install.sh`:
+In `static` credential mode (default), set the matching `AWS_*` keys under `services.runner.env`:
 
-```bash
-export AWS_REGION="us-east-1"                           # services.snapshotManager.storage.s3.region
-export AWS_DEFAULT_BUCKET="my-org-daytona-region-us"    # services.snapshotManager.storage.s3.bucket
-export AWS_ACCESS_KEY_ID="AKIA..."                      # services.snapshotManager.storage.s3.accessKey
-export AWS_SECRET_ACCESS_KEY="..."                      # services.snapshotManager.storage.s3.secretKey
-export AWS_ENDPOINT_URL="https://s3.us-east-1.amazonaws.com"
-
-curl -sSL https://download.daytona.io/install.sh | sudo -E bash
+```yaml
+services:
+  runner:
+    aws:
+      credentialMode: static          # default; explicit for clarity
+    env:
+      AWS_REGION: "us-east-1"                           # match services.snapshotManager.storage.s3.region
+      AWS_DEFAULT_BUCKET: "my-org-daytona-region-us"    # match services.snapshotManager.storage.s3.bucket
+      AWS_ACCESS_KEY_ID: "AKIA..."                      # match services.snapshotManager.storage.s3.accessKey
+      AWS_SECRET_ACCESS_KEY: "..."                      # match services.snapshotManager.storage.s3.secretKey
+      AWS_ENDPOINT_URL: "https://s3.us-east-1.amazonaws.com"
 ```
 
-`sudo -E` preserves the env vars through the sudo boundary. See [`runner/README.md` → Declarative Builder Configuration](../../runner/README.md#declarative-builder-configuration) for the full reference.
+The chart renders these into the `runner-secrets` Secret and the runner pod consumes them via `envFrom.secretRef`. See the IRSA flow below for the IAM-role alternative.
 
 ### Step 4 — Verify
 
@@ -262,7 +265,23 @@ services:
         bucket: "my-org-daytona-region-us"
 ```
 
-**Runners (EC2 instance profile):** attach the IAM policy to the instance profile of the runner's launch template, then run `install.sh` with `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` left empty. The AWS SDK on the runner will pick up instance-metadata credentials.
+**Runner DaemonSet (EKS IRSA):** set `services.runner.aws.credentialMode: irsa`, annotate the runner's ServiceAccount with `eks.amazonaws.com/role-arn`, and the chart will omit the static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` keys from the runner Secret entirely. The AWS SDK inside the runner container then picks up the IRSA-projected web-identity token:
+
+```yaml
+services:
+  runner:
+    aws:
+      credentialMode: irsa
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/daytona-region-runner"
+    env:
+      AWS_REGION: "us-east-1"
+      AWS_DEFAULT_BUCKET: "my-org-daytona-region-us"
+      AWS_ENDPOINT_URL: "https://s3.us-east-1.amazonaws.com"
+```
+
+> **Note** — Upstream `daytona-runner` currently hard-requires non-empty `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` at startup (see [`docs/upstream-issues/runner-irsa-support.md`](../../docs/upstream-issues/runner-irsa-support.md)). Until that lands, set `services.runner.aws.allowEmptyStaticKeyShim: true` to have the chart emit empty-string placeholders that satisfy the validator while the AWS SDK still uses the IRSA web-identity token at runtime.
 
 ### Registration Configuration
 
@@ -297,7 +316,7 @@ Your TLS certificate should cover both patterns. Options:
 
 ## Private Registry Authentication (ECR)
 
-Private-image authentication for snapshots is **handled by Daytona's control plane, not by the runner**. The runner has no `DOCKER_AUTH_CONFIG`, no `~/.docker/config.json` lookup, and no `aws ecr get-login-password` code path of its own — searching this chart and `runner/install.sh` confirms it. Pull credentials are obtained centrally per pull and handed to the runner inline with each `INSPECT_SNAPSHOT_IN_REGISTRY` / pull job.
+Private-image authentication for snapshots is **handled by Daytona's control plane, not by the runner**. The runner has no `DOCKER_AUTH_CONFIG`, no `~/.docker/config.json` lookup, and no `aws ecr get-login-password` code path of its own — searching this chart confirms it. Pull credentials are obtained centrally per pull and handed to the runner inline with each `INSPECT_SNAPSHOT_IN_REGISTRY` / pull job.
 
 This section is here because the most common BYOC support question — "I added `DOCKER_AUTH_CONFIG` to the runner and it still fails with `no basic auth credentials`" — is a consequence of that design and is not solvable on the runner side. The fix is always to register the registry with Daytona and let the control plane mediate.
 
@@ -545,17 +564,17 @@ Snapshot creation through `Image.debian_slim(...)` involves both the snapshot-ma
    ```
    Look for `403 Forbidden`, `NoSuchBucket`, or missing-credential errors at startup. If the pod is in `CrashLoopBackOff`, the chart values under `services.snapshotManager.storage.s3.*` are the place to fix it.
 
-2. **Does each runner have matching `AWS_*` env vars?**
+2. **Does each runner pod have matching `AWS_*` env vars?**
    ```bash
-   ssh ubuntu@<runner-ip> \
-     "sudo grep -E '^Environment=AWS_' /etc/systemd/system/daytona-runner.service"
+   kubectl -n daytona exec daemonset/<release>-daytona-region-runner -c runner -- \
+     env | grep -E '^AWS_'
    ```
-   The five `AWS_*` lines must point at the **same bucket / region** as `services.snapshotManager.storage.s3.*` in this chart. Empty `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are valid only when the runner EC2 instance profile carries the matching IAM policy.
+   The five `AWS_*` lines must point at the **same bucket / region** as `services.snapshotManager.storage.s3.*` in this chart. Empty `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are valid only when `services.runner.aws.credentialMode: irsa` is set and the runner ServiceAccount carries the matching IRSA role-arn annotation.
 
 3. **Can the runner reach the bucket on its own?**
    ```bash
-   ssh ubuntu@<runner-ip> \
-     "aws s3 ls s3://my-org-daytona-region-us"
+   kubectl -n daytona exec daemonset/<release>-daytona-region-runner -c runner -- \
+     aws s3 ls s3://my-org-daytona-region-us
    ```
    If this fails, the IAM policy or the network path is the problem — fix it before touching Daytona.
 

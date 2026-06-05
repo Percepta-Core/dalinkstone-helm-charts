@@ -1,5 +1,17 @@
 # Daytona BYOC on Azure — Customer Journey Reproducer
 
+> **⚠️ LEGACY / REPRO FLOW**
+> These scripts are **operator-side IaC reproductions** of the BYOC customer
+> journey on Azure, plus a bare-metal bootstrap (`install.sh`) aid used while
+> diagnosing single-VM and pre-AKS friction. They are **not** the canonical
+> install path on AKS / EKS / GKE.
+>
+> The canonical Kubernetes-native install is `helm install daytona-region
+> ./charts/daytona-region/` — see
+> [`charts/daytona-region/QUICKSTART.md`](../../charts/daytona-region/QUICKSTART.md)
+> for the end-to-end walkthrough. The `install.sh` references in this directory
+> describe the deprecated bare-metal flow used by the reproducers only.
+
 This reproducer walks through what a real Daytona Cloud customer experiences
 when adopting **Customer Managed Compute (BYOC)** on Azure. The goal is to
 make the friction points concrete, not just to ship working scripts.

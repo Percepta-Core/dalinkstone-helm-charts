@@ -1,0 +1,49 @@
+# Final GREEN gate state — Prompt 1 complete (post-reviewer-hardening)
+# Captured: 2026-06-04T14:07:18Z
+# Branch: ulw/p1-foundation @ d1892ef
+
+## S1 hack/check-no-install-sh.sh
+OK: no forbidden install.sh-on-node / runner-SSH references in supported flows.
+S1 exit=0
+
+## S5 hack/check-scripts.sh
+OK: shellcheck warning-level clean for scripts/{aws,azure,gcs}-setup/*.sh
+S5 exit=0
+
+## S6 hack/check-baseline-compat.sh (post-squote-hardening + baseline refresh)
+OK [daytona-region]: baseline preserved (Chart version + known-random subchart fields filtered)
+OK [daytona]: baseline preserved (Chart version + known-random subchart fields filtered)
+S6 exit=0
+
+## S2+S3+S4 helm unittest
+ PASS  runner main container shape (S2)	tests/runner-daemonset_test.yaml
+ PASS  runner host-aliases shared function + dynamic resolution (S3)	tests/runner-host-aliases_test.yaml
+ PASS  runner AWS credentialMode (S4)	tests/runner-irsa_test.yaml
+
+Charts:      1 passed, 1 total
+Test Suites: 3 passed, 3 total
+Tests:       16 passed, 16 total
+Snapshot:    0 passed, 0 total
+Time:        37.917667ms
+
+unittest exit=0
+
+## helm lint (all 3 invocations)
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+
+## REVIEWER VERDICTS
+- verifier (bg_e9ebaf54): PASS — 0 blockers, 2 documented gaps (both pre-existing)
+- code-reviewer (bg_56e40c03 stuck, bg_5d424126 focused): PASS — 6/6 decisions APPROVE, 3/3 security SAFE, 0 blockers, 7 nits (1 applied as squote hardening)
+
+## ACTIONABLE NIT APPLIED
+- runner-daemonset.yaml hostAlias values now use helm 'squote' filter for shell-quote safety
+- Tests updated to expect squote-rendered output
+- Baseline refreshed to capture squote rendering as new intended state

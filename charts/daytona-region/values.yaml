@@ -325,7 +325,7 @@ services:
     image:
       registry: docker.io
       repository: daytonaio/daytona-runner-manager
-      tag: "v0.158.4-4-byoc-amd64"
+      tag: "v0.183.0"
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
@@ -396,10 +396,56 @@ services:
       repository: daytonaio/daytona-runner
       tag: ""
       pullPolicy: IfNotPresent
+    # mainContainer: opt-in K8s-native runner container that runs `daytona-runner` as a
+    # privileged container inside the DaemonSet pod (sibling to the host-bootstrap
+    # docker-installer + daytona-binary-installer sidecars). When `enabled: false` (default),
+    # the chart preserves the historical sidecar-only behavior — the runner process is
+    # started outside the chart, exactly as before this knob existed. When `enabled: true`,
+    # the chart renders a real `runner` container with envFrom config+secret, hostPort api/ssh,
+    # var-lib-daytona hostPath mount, and (when insecureRegistries set) a runner-side
+    # daemon.json ConfigMap mount. This is the canonical K8s-native BYOC path.
+    mainContainer:
+      enabled: false
+    # ports exposed by the runner main container (and also opened as hostPort on the node).
+    ports:
+      api: 3000
+      ssh: 2220
+    # hostPaths used by the runner main container's hostPath mounts.
+    hostPaths:
+      varLibDaytona: /var/lib/daytona
+    # docker.daemonConfig.enabled: opt-in to mount a chart-rendered /etc/docker/daemon.json
+    # into the runner container even when insecureRegistries is empty. Useful for operators
+    # who want the runner container's docker daemon config to be deterministic and survive
+    # host drift caused by other DaemonSet pods writing to the host /etc/docker/daemon.json.
+    docker:
+      daemonConfig:
+        enabled: false
+    # aws.credentialMode controls how AWS credentials reach the runner pod.
+    #   static — emit AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY into runner-secrets from
+    #            services.runner.env.* (existing behavior, backward compatible).
+    #   irsa   — omit AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY entirely; rely on the
+    #            ServiceAccount's eks.amazonaws.com/role-arn annotation to inject an
+    #            IRSA-projected web-identity token at runtime. Set the role-arn under
+    #            services.runner.serviceAccount.annotations.
+    # aws.allowEmptyStaticKeyShim — when credentialMode=irsa, emit empty-string
+    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY to satisfy the upstream daytona-runner
+    # config validator (which currently hard-requires these keys at startup; see
+    # docs/upstream-issues/runner-irsa-support.md). The AWS SDK still uses the IRSA
+    # token at runtime — the empty strings just unblock the startup validator. Defaults
+    # to false; opt-in workaround only.
+    aws:
+      credentialMode: static
+      allowEmptyStaticKeyShim: false
     serviceAccount:
       create: true
       annotations: {}
       name: ""
+      # automountServiceAccountToken — unset by default so the chart renders identically
+      # to pre-knob behavior (kubelet applies its own default, which is true). Set to false
+      # to disable, true to enforce. IRSA does NOT require true — the IRSA web-identity
+      # token is injected via a separate projected volume by the eks-pod-identity-webhook
+      # regardless of this value.
+      # automountServiceAccountToken: true
     env:
       API_PORT: "3000"
       ENVIRONMENT: "production"
@@ -466,6 +512,15 @@ services:
       # "localhost:5000") so Docker doesn't try to TLS-validate the
       # in-pod socat forwarder.
       insecureRegistries: []
+      # dynamicHostAliases: hostnames that the docker-installer initContainer resolves
+      # at install time (via `getent hosts <name>` from inside the pod, which sees
+      # Kubernetes DNS) and then writes into the HOST's /etc/hosts via nsenter using
+      # the shared add_host_alias function with awk-tmp-merge dedupe. Use this when
+      # the host docker daemon needs to reach a cluster-service hostname (e.g.
+      # "snapshot-manager", "registry.internal") that is only resolvable through
+      # CoreDNS. Static entries with explicit IPs should go in services.runner.hostAliases
+      # instead (those skip the getent step).
+      dynamicHostAliases: []
       airgapped:
         enabled: false
         packagesImage: "daytonaio/daytona-runner-packages:v0.0.2"

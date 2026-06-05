@@ -1,4 +1,20 @@
 #!/bin/bash
+# =============================================================================
+# LEGACY — NON-CANONICAL INSTALL PATH
+# -----------------------------------------------------------------------------
+# This script installs the Daytona runner as a host-process on a single VM. It
+# is retained for historical / non-Kubernetes deployments ONLY.
+#
+# The CANONICAL Daytona BYOC install path is the Helm chart at
+# `charts/daytona-region/` (see its README.md). The chart installs the runner
+# as a Kubernetes DaemonSet that handles host-side bootstrapping from inside
+# the pod via nsenter — operators DO NOT ssh into nodes and DO NOT run this
+# script in supported BYOC flows on AKS / EKS / GKE.
+#
+# Do not link to this script from any chart README, NOTES.txt, or values.yaml
+# comment as the recommended install path. The `hack/check-no-install-sh.sh`
+# guard enforces that constraint at CI time.
+# =============================================================================
 
 set -e  # Exit on any error
 

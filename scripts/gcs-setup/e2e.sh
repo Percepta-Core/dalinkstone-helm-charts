@@ -75,9 +75,9 @@ GCS_BEFORE_STAGE_B="$(gcs_object_count "$GCS_BUCKET")"
 
 command -v python3 >/dev/null 2>&1 || { echo "python3 not installed"; exit 1; }
 python3 -c "import daytona" 2>/dev/null || {
-  echo "Installing daytona SDK (pip install daytona)..."
-  python3 -m pip install --quiet --user daytona || {
-    echo "failed to install daytona SDK; try: pip install daytona"
+  echo "Installing daytona SDK (pip install 'daytona==0.183.*')..."
+  python3 -m pip install --quiet --user "daytona==0.183.*" || {
+    echo "failed to install daytona SDK; try: pip install 'daytona==0.183.*'"
     exit 1
   }
 }
@@ -179,7 +179,7 @@ if skip_a:
     results["A"]["status"] = "skipped"
 elif Image is None or CreateSandboxFromImageParams is None:
     banner("A", "SKIPPED (SDK missing Image / CreateSandboxFromImageParams)")
-    print("  -> upgrade the SDK: pip install -U daytona")
+    print("  -> upgrade the SDK: pip install -U 'daytona==0.183.*'")
     results["A"]["status"] = "skipped"
 else:
     # IMPORTANT: do NOT use bare `client.create()` here. That uses the
@@ -230,7 +230,7 @@ if skip_b:
     results["B"]["status"] = "skipped"
 elif Image is None or CreateSandboxFromImageParams is None:
     banner("B", "SKIPPED (SDK missing Image / CreateSandboxFromImageParams)")
-    print("  -> upgrade the SDK to test the declarative builder: pip install -U daytona")
+    print("  -> upgrade the SDK to test the declarative builder: pip install -U 'daytona==0.183.*'")
     results["B"]["status"] = "skipped"
 else:
     banner("B", "DECLARATIVE BUILDER PATH - Customer Question 2 (GCS wiring)")
