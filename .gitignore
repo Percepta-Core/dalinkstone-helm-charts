@@ -108,3 +108,16 @@ tmp/
 *password*.yml
 *credential*.yaml
 *credential*.yml
+
+# OMC orchestration state
+.omc/
+
+# Per-script local state (prompts.env, secrets, kubeconfigs, cached SKUs)
+**/.state/
+
+# Python venvs from test directories
+**/.venv/
+**/__pycache__/
+
+# Editor/sed leftovers
+*.bak
