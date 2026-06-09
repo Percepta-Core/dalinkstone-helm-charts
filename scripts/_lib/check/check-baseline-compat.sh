@@ -10,7 +10,7 @@
 #   1 — semantic diff present (regression)
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
 FAIL=0
@@ -57,7 +57,7 @@ run_diff() {
 
 HARBOR_RANDOM='^[+-]\s+(tls\.key|tls\.crt|ca\.key|ca\.crt|CSRF_KEY|JOBSERVICE_SECRET|REGISTRY_HTTP_SECRET|REGISTRY_HTPASSWD|REGISTRY_CREDENTIAL_PASSWORD|HARBOR_ADMIN_PASSWORD|POSTGRESQL_PASSWORD|secret|jobservice_secret|checksum/secret|checksum/secret-core|checksum/secret-jobservice):'
 
-run_diff "daytona-region" "test/baselines/daytona-region-baseline.yaml" "-f test/fixtures/region-baseline.values.yaml" "daytona-region" ""
-run_diff "daytona" "test/baselines/daytona-baseline.yaml" "" "daytona" "$HARBOR_RANDOM"
+run_diff "daytona-region" "charts/daytona-region/tests/baselines/rendered-baseline.yaml" "-f charts/daytona-region/tests/fixtures/baseline.values.yaml" "daytona-region" ""
+run_diff "daytona" "charts/daytona/tests/baselines/rendered-baseline.yaml" "" "daytona" "$HARBOR_RANDOM"
 
 exit $FAIL

@@ -598,6 +598,14 @@ spec:
               value: {{ .Values.services.runner.env.DAEMON_START_TIMEOUT_SEC | default "30" | quote }}
             - name: SANDBOX_START_TIMEOUT_SEC
               value: {{ .Values.services.runner.env.SANDBOX_START_TIMEOUT_SEC | default "60" | quote }}
+            - name: HEALTHCHECK_INTERVAL
+              value: {{ .Values.services.runner.env.HEALTHCHECK_INTERVAL | default "10s" | quote }}
+            - name: HEALTHCHECK_TIMEOUT
+              value: {{ .Values.services.runner.env.HEALTHCHECK_TIMEOUT | default "10s" | quote }}
+            - name: RUNNER_DOMAIN
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             # Secrets
             - name: DAYTONA_API_URL
               value: {{ .Values.services.runner.env.DAYTONA_API_URL | default "" | quote }}
@@ -640,19 +648,11 @@ spec:
             {{- include "daytona.tplvalues.render" (dict "value" .Values.services.runner.extraEnv "context" $) | nindent 12 }}
             {{- end }}
           volumeMounts:
-            {{- if eq (.Values.services.runner.env.CONTAINER_RUNTIME | default "docker") "docker" }}
-            - name: docker-socket
-              mountPath: /var/run/
-            {{- else }}
-            - name: containerd-socket
-              mountPath: /run/containerd/containerd.sock
-            {{- end }}
             - name: host-root
               mountPath: /host
               readOnly: true
             - name: host-var-lib-docker
               mountPath: /var/lib/docker
-              readOnly: true
             - name: logs
               mountPath: /home/daytona/runner
             - name: ssh-keys
@@ -684,22 +684,12 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
       volumes:
-        - name: docker-socket
-          hostPath:
-            path: /var/run/
-            type: Directory
-        - name: containerd-socket
-          hostPath:
-            path: /run/containerd/containerd.sock
-            type: Socket
         - name: host-root
           hostPath:
             path: /
             type: Directory
         - name: host-var-lib-docker
-          hostPath:
-            path: /var/lib/docker
-            type: DirectoryOrCreate
+          emptyDir: {}
         - name: logs
           hostPath:
             path: /var/log/daytona-runner

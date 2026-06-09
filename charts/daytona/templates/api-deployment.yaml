@@ -14,6 +14,11 @@ spec:
   {{- if not .Values.services.api.autoscaling.enabled }}
   replicas: {{ .Values.services.api.replicaCount }}
   {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "daytona.selectorLabels" . | nindent 6 }}
@@ -47,7 +52,7 @@ spec:
               protocol: TCP
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: ""
+              value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "default-runner" | quote }}
             # Application configuration
             - name: ENVIRONMENT
               value: {{ .Values.services.api.env.ENVIRONMENT | default "production" | quote }}
@@ -147,8 +152,15 @@ spec:
             {{- end }}
             {{- end }}
             # Proxy Configuration
+            # PROXY_DOMAIN intentionally uses bare .baseDomain (no "proxy." prefix).
+            # Sandbox preview URLs are constructed as <port>-<sandboxIdSlice>.<PROXY_DOMAIN>,
+            # so this keeps them at a single subdomain level (e.g. 3000-abc.<base>)
+            # which matches the chart's proxy-ingress wildcard *.<baseDomain> AND the
+            # *.<baseDomain> cert SAN issued by cert-manager. Upstream defaults to
+            # "proxy.<baseDomain>" producing TWO-level URLs that no one-level wildcard
+            # cert/DNS covers — operators hit ERR_CERT_AUTHORITY_INVALID on every preview.
             - name: PROXY_DOMAIN
-              value: {{ printf "proxy.%s" .Values.baseDomain | quote }}
+              value: {{ .Values.baseDomain | quote }}
             - name: PROXY_PROTOCOL
               value: {{ .Values.services.proxy.env.PROXY_PROTOCOL | default "http" | quote }}
             - name: PROXY_TEMPLATE_URL
@@ -327,7 +339,7 @@ spec:
               value: {{ .Values.services.api.env.SMTP_EMAIL_FROM | default "noreply@mail.daytona.io" | quote }}
             # APP Configuration
             - name: DEFAULT_SNAPSHOT_IMAGE_NAME
-              value: {{ .Values.services.api.env.DEFAULT_SNAPSHOT_IMAGE_NAME | default "daytonaio/sandbox:0.5.1-slim" | quote }}
+              value: {{ .Values.services.api.env.DEFAULT_SNAPSHOT_IMAGE_NAME | default "daytonaio/sandbox:0.8.0-slim" | quote }}
             - name: DEFAULT_SNAPSHOT_NAME
               value: {{ .Values.services.api.env.DEFAULT_SNAPSHOT_NAME | default "default-snapshot" | quote }}
             - name: DEFAULT_RUNNER_DOMAIN
@@ -340,6 +352,11 @@ spec:
             {{- if .Values.services.api.env.RUNNER_MANAGER_API_KEY }}
             - name: RUNNER_MANAGER_API_KEY
               value: {{ .Values.services.api.env.RUNNER_MANAGER_API_KEY | quote }}
+            {{- end }}
+            {{- $defaultRunnerApiKey := .Values.services.api.env.DEFAULT_RUNNER_API_KEY | default .Values.services.runner.env.API_TOKEN }}
+            {{- if $defaultRunnerApiKey }}
+            - name: DEFAULT_RUNNER_API_KEY
+              value: {{ $defaultRunnerApiKey | quote }}
             {{- end }}
             {{- if .Values.services.api.extraEnv }}
             {{- include "daytona.tplvalues.render" (dict "value" .Values.services.api.extraEnv "context" $) | nindent 12 }}

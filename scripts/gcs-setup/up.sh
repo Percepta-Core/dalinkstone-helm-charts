@@ -15,7 +15,7 @@
 #  10. renders values-region.yaml.tmpl and helm-installs daytona-region
 #  11. prints proxy URL for sandbox-create testing
 #
-# See /Users/dalinstone/main/test/byoc-overhaul/gcp.md for the full test loop.
+# See docs/byoc-overhaul/gcp.md (in this repo) for the full test loop.
 set -euo pipefail
 IFS=$'\n\t'
 

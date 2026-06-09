@@ -38,6 +38,52 @@ omc::need_cmd() {
 }
 
 # ---------------------------------------------------------------- prompts
+# omc::prompt_choice VAR "label" CHOICE1 [CHOICE2 ...]
+# Prompts the operator to pick one of the listed choices by number. First choice
+# is the default. Pre-set values (e.g. TLS_MODE=cloudflare-dns01 in env) are
+# honored if they match one of the choices; otherwise the prompt rejects and
+# re-asks. In OMC_NONINTERACTIVE mode, uses the first choice as default.
+omc::prompt_choice() {
+  local var="$1" label="$2"; shift 2
+  local choices=("$@")
+  local default="${choices[0]}"
+  if [[ -n "${!var:-}" ]]; then
+    local found=0
+    for c in "${choices[@]}"; do
+      if [[ "$c" == "${!var}" ]]; then found=1; break; fi
+    done
+    if [[ "$found" -eq 1 ]]; then
+      omc::log INFO "$var (pre-set): ${!var}"
+      return 0
+    fi
+    omc::log WARN "$var pre-set to '${!var}' but not in allowed choices (${choices[*]}); re-prompting"
+  fi
+  if [[ "${OMC_NONINTERACTIVE:-0}" == "1" ]]; then
+    printf -v "$var" '%s' "$default"
+    export "${var?}"
+    omc::log INFO "$var (default, non-interactive): $default"
+    return 0
+  fi
+  echo "$label" >&2
+  local i=1
+  for c in "${choices[@]}"; do
+    echo "  $i) $c" >&2
+    i=$((i+1))
+  done
+  local reply
+  while true; do
+    read -r -p "Choose 1-${#choices[@]} [1=$default]: " reply
+    reply="${reply:-1}"
+    if [[ "$reply" =~ ^[0-9]+$ ]] && (( reply >= 1 && reply <= ${#choices[@]} )); then
+      printf -v "$var" '%s' "${choices[$((reply-1))]}"
+      export "${var?}"
+      omc::log INFO "$var = ${!var}"
+      return 0
+    fi
+    echo "  Invalid choice; pick a number 1-${#choices[@]}" >&2
+  done
+}
+
 # omc::prompt VAR "label" [default]
 # Reads a value into VAR. If OMC_NONINTERACTIVE=1, uses default or dies.
 omc::prompt() {
@@ -249,6 +295,48 @@ spec:
             class: nginx
 EOF
   omc::log INFO "ClusterIssuer letsencrypt-prod applied (email=${email})"
+}
+
+# omc::cluster_issuer_apply_cf_dns01 EMAIL CF_API_TOKEN [ns=cert-manager]
+# Applies a Let's Encrypt DNS-01 ClusterIssuer named letsencrypt-prod with a
+# Cloudflare solver. REQUIRED for wildcard SANs — HTTP-01 cannot satisfy
+# wildcard challenges per Let's Encrypt rules. The daytona chart's api/proxy
+# ingresses emit wildcard TLS specs (*.<baseDomain>), so DNS-01 is the only
+# challenge type that yields valid certs for those ingresses.
+#
+# CF_API_TOKEN must have these zone-scoped permissions for BASE_DOMAIN's zone:
+#   Zone:Read, Zone DNS:Edit
+# Create at: Cloudflare dashboard → My Profile → API Tokens → Create Token →
+# "Edit zone DNS" template.
+omc::cluster_issuer_apply_cf_dns01() {
+  local email="$1" cf_token="$2" ns="${3:-cert-manager}"
+  if [[ -z "$email" || -z "$cf_token" ]]; then
+    omc::die "cluster_issuer_apply_cf_dns01: email and cf_token are required"
+  fi
+
+  kubectl -n "$ns" create secret generic cloudflare-api-token \
+    --from-literal=api-token="$cf_token" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+  kubectl apply -f - <<EOF >/dev/null
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: ${email}
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+EOF
+  omc::log INFO "ClusterIssuer letsencrypt-prod applied (DNS-01 via Cloudflare; email=${email})"
 }
 
 # omc::az_register_providers PROVIDER1 PROVIDER2 ...

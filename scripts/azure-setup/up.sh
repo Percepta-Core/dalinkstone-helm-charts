@@ -14,7 +14,7 @@
 #  10. prints proxy URL for sandbox-create testing
 #
 # Verifies that the AKS docker-installer tarball fallback fires (Prompt 1 d1892ef).
-# See /Users/dalinstone/main/test/byoc-overhaul/azure.md for the full test loop.
+# See docs/byoc-overhaul/azure.md (in this repo) for the full test loop.
 set -euo pipefail
 IFS=$'\n\t'
 

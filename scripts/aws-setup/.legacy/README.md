@@ -13,4 +13,4 @@ Kept here for forensic comparison while the [upstream IRSA support gap](../../..
 | `diagnose-runner.sh` | SSM-based read-only diagnostic for the systemd-installed runner |
 | `ecr-setup.sh` | ECR pull-through cache + IAM role + Daytona registry registration (optional add-on) |
 
-The canonical K8s-native path is `bash ../up.sh` — see [`../README.md`](../README.md) and `/Users/dalinstone/main/test/byoc-overhaul/aws.md`.
+The canonical K8s-native path is `bash ../up.sh` — see [`../README.md`](../README.md) and [`docs/byoc-overhaul/aws.md`](../../../docs/byoc-overhaul/aws.md).

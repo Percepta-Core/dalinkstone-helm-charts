@@ -206,7 +206,7 @@ vars, or skip the prompt entirely with `NON_INTERACTIVE=true`.
 ## How to run
 
 ```bash
-cd ~/main/test/cmc/gcs-repro
+cd scripts/gcs-setup/test
 
 export DAYTONA_API_KEY='dtn_paste-personal-key-here'
 export DOMAIN='cmc.yourdomain.com'

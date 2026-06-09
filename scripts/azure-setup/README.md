@@ -141,7 +141,7 @@ and each surfaces during this repro.
 ## How to run
 
 ```bash
-cd ~/main/test/cmc/azure-repro
+cd scripts/azure-setup/test
 
 export DAYTONA_API_KEY='dtn_paste-personal-key-here'
 export DOMAIN='cmc.yourdomain.com'
@@ -211,7 +211,7 @@ curl -sS -H "Authorization: Bearer $DAYTONA_API_KEY" \
 
 ## Comparison to the on-prem reproducer
 
-The on-prem reproducer (`~/main/test/on-prem/azure-repro/`) self-hosts the
+The full-OSS deployment (see [`scripts/azure-oss-setup/`](../azure-oss-setup/)) self-hosts the
 **entire** Daytona stack (control plane + runners + everything). This BYOC
 reproducer self-hosts only the **compute** half — control plane stays at
 `app.daytona.io`. They're different deployment models and serve different

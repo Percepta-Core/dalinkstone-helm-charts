@@ -13,4 +13,4 @@ Kept here for forensic comparison while the [upstream IRSA support gap](../../..
 | `diagnose-snapshot.sh` | Read-only diagnostic for snapshot/GCS/runner issues |
 | `gcr-setup.sh` | Artifact Registry + IAM SA + JSON key in Secret Manager (despite the filename, this uses AR not legacy GCR) |
 
-The canonical K8s-native path is `bash ../up.sh` — see [`../README.md`](../README.md) and `/Users/dalinstone/main/test/byoc-overhaul/gcp.md`.
+The canonical K8s-native path is `bash ../up.sh` — see [`../README.md`](../README.md) and [`docs/byoc-overhaul/gcp.md`](../../../docs/byoc-overhaul/gcp.md).

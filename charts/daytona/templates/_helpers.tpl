@@ -153,7 +153,7 @@ Usage:
   {{- end -}}
 {{- else -}}
   {{- /* Auto-generate proxy.{{baseDomain}} */ -}}
-  {{- $baseDomain = printf "proxy.%s" .Values.baseDomain -}}
+  {{- $baseDomain = .Values.baseDomain -}}
   {{- if $shouldOmitPort -}}
     {{- $baseDomain -}}
   {{- else -}}

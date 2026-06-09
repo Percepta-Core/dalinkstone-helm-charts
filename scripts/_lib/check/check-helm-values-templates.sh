@@ -6,7 +6,7 @@
 # This is the STATIC SUBSTITUTE for cloud QA — operator runs real-cloud separately.
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
 FAIL=0
@@ -69,14 +69,13 @@ check_template() {
 for cloud in aws azure gcs; do
   check_template "BYOC region: $cloud" \
     "scripts/${cloud}-setup/values-region.yaml.tmpl" \
-    "test/fixtures/byoc-prompt-set-${cloud}.env" \
+    "scripts/${cloud}-setup/.tests/byoc-prompt-set.env" \
     "charts/daytona-region"
 done
 
-# Full OSS self-hosted Azure deploy (uses daytona main chart, not daytona-region)
 check_template "OSS self-hosted: azure" \
   "scripts/azure-oss-setup/values-oss.yaml.tmpl" \
-  "test/fixtures/oss-prompt-set-azure.env" \
+  "scripts/azure-oss-setup/.tests/oss-prompt-set.env" \
   "charts/daytona"
 
 echo ""

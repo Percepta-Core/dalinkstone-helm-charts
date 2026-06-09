@@ -26,6 +26,7 @@ spec:
   ingress:
     - ports:
         - port: 5432
+
 ---
 # Source: daytona/charts/redis/templates/networkpolicy.yaml
 kind: NetworkPolicy
@@ -53,6 +54,7 @@ spec:
     # Allow inbound connections
     - ports:
         - port: 6379
+
 ---
 # Source: daytona/charts/postgresql/templates/primary/pdb.yaml
 apiVersion: policy/v1
@@ -74,6 +76,7 @@ spec:
       app.kubernetes.io/instance: release-name
       app.kubernetes.io/name: postgresql
       app.kubernetes.io/component: primary
+
 ---
 # Source: daytona/charts/redis/templates/master/pdb.yaml
 apiVersion: policy/v1
@@ -95,6 +98,7 @@ spec:
       app.kubernetes.io/instance: release-name
       app.kubernetes.io/name: redis
       app.kubernetes.io/component: master
+
 ---
 # Source: daytona/charts/redis/templates/replicas/pdb.yaml
 apiVersion: policy/v1
@@ -116,6 +120,7 @@ spec:
       app.kubernetes.io/instance: release-name
       app.kubernetes.io/name: redis
       app.kubernetes.io/component: replica
+
 ---
 # Source: daytona/charts/postgresql/templates/serviceaccount.yaml
 apiVersion: v1
@@ -130,6 +135,7 @@ metadata:
     app.kubernetes.io/version: 17.6.0
     helm.sh/chart: postgresql-16.7.27
 automountServiceAccountToken: false
+
 ---
 # Source: daytona/charts/redis/templates/master/serviceaccount.yaml
 apiVersion: v1
@@ -144,6 +150,7 @@ metadata:
     app.kubernetes.io/name: redis
     app.kubernetes.io/version: 8.2.1
     helm.sh/chart: redis-22.0.7
+
 ---
 # Source: daytona/charts/redis/templates/replicas/serviceaccount.yaml
 apiVersion: v1
@@ -158,6 +165,7 @@ metadata:
     app.kubernetes.io/name: redis
     app.kubernetes.io/version: 8.2.1
     helm.sh/chart: redis-22.0.7
+
 ---
 # Source: daytona/templates/api-serviceaccount.yaml
 apiVersion: v1
@@ -172,6 +180,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: api
+
 ---
 # Source: daytona/templates/proxy-serviceaccount.yaml
 apiVersion: v1
@@ -186,6 +195,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: proxy
+
 ---
 # Source: daytona/templates/runner-manager-serviceaccount.yaml
 apiVersion: v1
@@ -228,6 +238,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: ssh-gateway
+
 ---
 # Source: daytona/charts/harbor/templates/core/core-secret.yaml
 apiVersion: v1
@@ -248,13 +259,14 @@ metadata:
 type: Opaque
 data:
   secretKey: "bm90LWEtc2VjdXJlLWtleQ=="
-  secret: "MGIyTXhrVlBVOU1EaENwdg=="
-  tls.key: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb2dJQkFBS0NBUUVBeXptbm9pTUhzOEdQZWRndWNMOGtjZGtSRlJJODdpU3ZjdWpEZEFzMUIzZ3B2RmR6CnRFQUNrRjRJMFh0NXVZVFd5SzB1WENBdEZIRFpLVjdGMnBIOXgvdWJXdDUyRlpYWjY5SHR0cnc3TzlVL2NOemkKelNoVVNDdGc4VE44Y01sdUFKNTRhaC81RDZWV3dyRzNaQWFucmN5MStUenZDbXdiNEh0d2hZemNjVEpQOGVsRApuWXFDYTB3emhhSVlCZWs4SHgyRXVNcjE0OENHTEdmWnh1a0NIajRPZWlZZExCM3NoWEFLOE5ZWWNjUjZZdyttClEwQ29JU1lRcEw4OGpkQXRPdUVNYjhSeEhSNmlLajkxeFc5Z1RNSVJxMERIMlFiNC90c1ZJSFZHLzBxZVNISEoKaUt4ZjFZcmlyOGhJTlNWSjJmODlka2x0bjVqSGY0c2V3VG40c1FJREFRQUJBb0lCQUNXcklKN0ZkbktEc0tmcApnYVlsVDhpSWJ3bWtVVVhrNTk1Wk5ZMUhYSU52YXZEOWxyVTAzaVRMUVVBdTdsK01OMUdJQkIxUVczcTc5Z3ljCmcvamc4WlRGVnNUdmtoeXJJM0w1L09GUG4zMFdLRVd2czV4S1d1RHJwWExmMDdPR0tvMFQwb2I5T1NtRXdJR2kKOWpha295VHNXbGlCeWw3NHJld2NoVDFENEVKY3QrNk9DTnB6cUthSStKaVJQSHRjTkR2NWRDR2lRaEVJNE8xSgppU2p5L0U2TmZXSkpqMnlVNkVQRzE5SHdYSmF4bHRvcEo2UWhpV1h0OFM1Z01OSTV0aUhOekV4K2Y5V1ZqT01RClJEZjNMYjBEdXZHMTlnTDdvUWNUdld0K1dOckJYNCtrSnY4aGJLczUxWWNHZUNGVmczUlNCRHlSeHMwY2lQb08KWElrenZwY0NnWUVBM25FK2lqcE1LNGgwd0NIbk5EZFByeVJ1d2w5ODZIMVRzUUtRYXViRXF2TkdtaVNZSUdmTwo4RmwrOFhGa20yYVljc2hCR1FQemhwREg0YkQ2aFNMMUZIRmpxam9pNHQ1K0ZpRi9oQ3hzMlZSWkdmUTJnMGNFCjlGNG1SSlFabVJSWDZmK3lBenFGVHM3RHJGNlJGSXlORDNGTEZpejUxQTNYQk1BaFZPWDlwNU1DZ1lFQTZlSTkKMklQQ3lnZ3V4UEkvblYvc21qM2lkblZlSGdXRUlaQ1hEV0FxVEpQRFNVNGdpMG9QWXRUSmFpZGNCaEZLVXJLYwpNRGdrai81ejdnUC9rcVQveDVabGlURFhSeE15Q0xVU01OWTJOOXAyMEhjaVlmaGMzb0FBLzQ5akh5M3RpMzZjClN3dmF3cjRxcUF3eWg5S3FuQUh2ZjFxaVBDT0tzUlhsSDdZendTc0NnWUFmZ1NaOGFWbFVhUlV3Q1IwMzFnV2gKSnFYUlBianhMSjduMlJjZkxPUDUyazdMa2hkQnI3SXRkRjk0VHJrVEVXclNCdTdCWGovbGRTZjZIUmkrTm45RApqL092cm1BMmhaQ1NEZGlEbmM4azBMOTEzNUxBOFJRUWtDMFhWV3B5dGVEbHNXTkM5Y3pmcG9Vc0twQ2R1bkpZCkY1R3M2RjNSM012eFRrenFPMUM3cFFLQmdBcTNoalAwbmFsYVJLSmJvMVNYdjZTMXJ6blVXUEt4T0FPOXQxNHkKaU4ybmE2eGhPeGFHMXp1bEduR1Z5aDZ4RGlISjgyUTJQbDZtdnpNcDFiMG5lRnp4NUVjc0NNRkYvT1h2UGgwawp3Nms5aG5JNDgwZGY5UWx3L2hxM3ZFZ0NkNzhMbHlmTkxFSCtLc0EyaHQ0NFpmN3VDOFpmSmMzeHB2cEVVWkpwCmErZXZBb0dBUlNYcE1rcThCRnBoalYwNWpaNDhHQ25OUGdvRkxxQjhZZk96SXg2akFuOEw1VndoOHlUSjV1RmoKVzhHM29hc3l4dTdjN2pzU1JxMFp1R2t6bXdlOHc1blZmait3OEZPMlVQM1N3YzJQSndnYWhzdFFBSU1VdlU5QwpJT3lQeVFUZVd0anhHTk1IazRQMVpzUVNwM1J2TDNxZy9QZ3AzNkdCbzliTUswNFJYM289Ci0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg=="
-  tls.crt: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURJRENDQWdpZ0F3SUJBZ0lSQUpVREcrRDl4aFBVczMyLzZUTThUb293RFFZSktvWklodmNOQVFFTEJRQXcKR2pFWU1CWUdBMVVFQXhNUGFHRnlZbTl5TFhSdmEyVnVMV05oTUI0WERUSTJNRFl3TkRJeE1UQTFOVm9YRFRJMwpNRFl3TkRJeE1UQTFOVm93R2pFWU1CWUdBMVVFQXhNUGFHRnlZbTl5TFhSdmEyVnVMV05oTUlJQklqQU5CZ2txCmhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBeXptbm9pTUhzOEdQZWRndWNMOGtjZGtSRlJJODdpU3YKY3VqRGRBczFCM2dwdkZkenRFQUNrRjRJMFh0NXVZVFd5SzB1WENBdEZIRFpLVjdGMnBIOXgvdWJXdDUyRlpYWgo2OUh0dHJ3N085VS9jTnppelNoVVNDdGc4VE44Y01sdUFKNTRhaC81RDZWV3dyRzNaQWFucmN5MStUenZDbXdiCjRIdHdoWXpjY1RKUDhlbERuWXFDYTB3emhhSVlCZWs4SHgyRXVNcjE0OENHTEdmWnh1a0NIajRPZWlZZExCM3MKaFhBSzhOWVljY1I2WXcrbVEwQ29JU1lRcEw4OGpkQXRPdUVNYjhSeEhSNmlLajkxeFc5Z1RNSVJxMERIMlFiNAovdHNWSUhWRy8wcWVTSEhKaUt4ZjFZcmlyOGhJTlNWSjJmODlka2x0bjVqSGY0c2V3VG40c1FJREFRQUJvMkV3Clh6QU9CZ05WSFE4QkFmOEVCQU1DQXFRd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUMKTUE4R0ExVWRFd0VCL3dRRk1BTUJBZjh3SFFZRFZSME9CQllFRklielEyOFRXeGVYY2tocEJwZmsvNzNyUUR1MQpNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUJqQWx5U0s2cFdMRG8xTnk3Y25RN0JOeWNweUZOcjhDUzJVRDR0Ci9hRDVQZWVRKzZtKzRpRCtGS0lJZFg4WXkvazBMdVFLVkFsYzhNY2Y5Q053NTBrRmVnYUZmSmd0d2xEN3dYR1YKWkNzeVlzTmpySU5GRlFPQ2t3WVduL0VCVlJaZFcwbHlkcjFZT09rU284MXlUV1RTVmJid250cldBd051eGprUQowWEpKK3hHN1dMT0EyaHg1QWJJUjBISGpidlhWL1MvQ290aDFIa2Njczg1UWtEMk9JQVhoaUphYnI4VGRaWm1zCngzWjBHdzhKaUR2QmgydGFwK1V6UjM5bG5ONEhlWitsUk10SXR0dnE1OEFiZVdJL2NOMDJuS1QzWERmRHFKbkcKK3NqWGQ2K0NIcmRsMTBpcWNYRHVXT1drekpoSGhyTmlxNjNGQzk0dGRHK2hUQmJDCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+  secret: "S3dBV1R3U3k4U2l6ckJxaA=="
+  tls.key: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBMUN1OStLd3FwZHNBdWFFWFlvNkNqRS9XdHlvV212MVpiNEtDMHdUL0hzUEVUM3M1Cmt2cUpwa0l0aE1uUGJlb0xzTCt1bDlkdm5xcy80RzFQdGFUTU1lakU0cjU2TVorVjFjWDZRWVFETDNNV1drZDAKbEk3SmlxTisrMEduWmF0ZzhUeE5sZHFxRDZmcS9qdXYyODNBeGloMFp3ZURaRmpvbG96cDhxaWVDdTZhNTAzdgo5TTljMkFLVXZ4NDNLdDR6VHZ6ZHZBcmROOXZiaVg2L21YUVNBVDVUdEhRU2RWbDdTcHcxMVBIaUVQVUl1Z0h6CkJsVUtOYzdYbUZWZlc5SkM3aEk5TzFCK3ozSXdmS0x0NG9UbStDMjI0c3llM2UrYWI5MU55a0JFZzFOYmNvQ20KQTcvYTJmblRKMXE0SlJhNEV2YXFidW1qa2VEbVU5cEk4RlJWR3dJREFRQUJBb0lCQUZpYTM5Myt3Rnk5UmVNLwp4QTFUcUc5Q1ZFL3YwcnJ0UExGVjFwNmJncE50ZkFrWlUrVHVuaGVCb1pMSDJNbDFLV2FwMWhieFVGcjU5MVlaCk1HV1NLZmhaMWdjL05yYU1oNzFielhRWTFsKzFkMHRDZGd3b1NVQ05vTlQ3Q1JacmFMTzExRXpWb1ptaUxYLzQKbXl0M0ZKOXNlNWdmU2g3WkJtRUEvaDVwam43UGZiNDdoQldlbm43c1h4TnEzY0Z6OUlTN1NKWDVSK2U2d24wMwo3NlpweUYxTzNpUkhmN2lrelBJTG81NmhCdXpTWlI0ZWpnTG83WGlKOU1hOGprdUJheVYrd1hhdVlHWURPSmU4CmlxSTRPSzltcStOUHJVbnQxTmZPM3k3bzl4bkY4VXpkWkwrcFdrOCtibytnOVFPN2RaRThackUvVnQzNldIdWMKZmY0VlJya0NnWUVBNGRmb2VlU0gvRGQwOEFmY3p5RjlJM0RuaUNkZjg2YStnUTJnTE9oSFQvZXZ2SlVaRXppSAo3NkZwVGMrbjRrQU9RQjNwcS9UY1ZZRjVsZXF3RVJjY1pTRUJOWHEvd2RCSmVzYmd4SkRTZERQc1VPNmdTY2pkCllYcFJxWnRNcHdjdHo5RTh2TTc0Y1VUbG80Q3hDRlJFNkZjRUo4KzE2eExiSmdVSWl2L3JZOFVDZ1lFQThJQjEKOTZnNDVaeTgvZGxHZHhDaGhLdGhDaTIybUtFdjl4VTFpMkkxRU9weDBIVi9IdTBvY2QxeFg0VTJmZUxLd3JzWQpqREpjQ0l2UmdlbWxjaHhxNW5IU2xmRTVmSmZjWTBJTEQyNHk4TFVxS1QxTGNrS1E4cWF5WnljajB1TXExc0tmCmpXR0IxTGFrWktYeWRpVGQ5WVF6S2MveGo2N3BRWFJBdWdpREExOENnWUVBaHEya3V4dm5aQ2NHR3lYMUxhaEEKNGVPd2p1YzhOeWFXc0lzWm0rNGdxTFdDSFNta3ZHdVgxUFVpd1A0MmxadXhZOWJ5eEZMUEdrYU41VE1CTUEvaQpKUVNibmZMSGE2TDBUcjFPeUttOGR3T0h4M09tTHBvVU9zOGc1ODN1MWlSWDAzaHBpZ2E2N1lFeW1HQmtNaDFlCndsY3g2VFBhdm9hT0hZd2UzaFZqb0NrQ2dZRUE3TGJ6NVp2c3pJczJOWUM2NjR3eC9md1Uya2plTldKSmJKK3kKZ1F0YmdkZlB5RWN0cE1uMmlnUlVoNWo5Wm5Cbjg3emxUM0J0eDNlZThZaC84RTNxSmdHWUxUOHR2dVZWNVZobQp2SHhScFR3YlVGWGxRWVFsV01BY1RvMW1wRFkxdndYMnR0aG5TbSt1Wk9ZMVBIWFRCY2xsOWx5V3ZUNkNsWXNQCi9rdE1jRzhDZ1lFQWt4K0wyV29pWVFjcVhlTDlhSkZDbXEveklyUVBZQ0JaaFpLQVJSdXl0N0VVNWNpV0NqYlUKVjhBS3RRempyK1lzOEVqRlJhWlJxNnlLNEJtdGJyOEVjZFNsWnNnUHlaL2JvRVFndnE4QU9nT2dsTDBzTUorbgp1MklvVWtVSFFJSTZoS0VmZXhydjRrbm11SjdtQTVSaWFJUmc1KzY0akF6UHdub3ZOYWpMYjZzPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo="
+  tls.crt: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURJRENDQWdpZ0F3SUJBZ0lSQUkzYVg0SzcwVVFzSXFiV1lvZnZRYjB3RFFZSktvWklodmNOQVFFTEJRQXcKR2pFWU1CWUdBMVVFQXhNUGFHRnlZbTl5TFhSdmEyVnVMV05oTUI0WERUSTJNRFl3T1RBMk1UZzBNbG9YRFRJMwpNRFl3T1RBMk1UZzBNbG93R2pFWU1CWUdBMVVFQXhNUGFHRnlZbTl5TFhSdmEyVnVMV05oTUlJQklqQU5CZ2txCmhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBMUN1OStLd3FwZHNBdWFFWFlvNkNqRS9XdHlvV212MVoKYjRLQzB3VC9Ic1BFVDNzNWt2cUpwa0l0aE1uUGJlb0xzTCt1bDlkdm5xcy80RzFQdGFUTU1lakU0cjU2TVorVgoxY1g2UVlRREwzTVdXa2QwbEk3SmlxTisrMEduWmF0ZzhUeE5sZHFxRDZmcS9qdXYyODNBeGloMFp3ZURaRmpvCmxvenA4cWllQ3U2YTUwM3Y5TTljMkFLVXZ4NDNLdDR6VHZ6ZHZBcmROOXZiaVg2L21YUVNBVDVUdEhRU2RWbDcKU3B3MTFQSGlFUFVJdWdIekJsVUtOYzdYbUZWZlc5SkM3aEk5TzFCK3ozSXdmS0x0NG9UbStDMjI0c3llM2UrYQpiOTFOeWtCRWcxTmJjb0NtQTcvYTJmblRKMXE0SlJhNEV2YXFidW1qa2VEbVU5cEk4RlJWR3dJREFRQUJvMkV3Clh6QU9CZ05WSFE4QkFmOEVCQU1DQXFRd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUMKTUE4R0ExVWRFd0VCL3dRRk1BTUJBZjh3SFFZRFZSME9CQllFRk5NbmxJYWZRL1QrOC85RmdkRWdOQmx1ZWJhaApNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUFjckxNOGtWdGN3MUVWSnVNV2xUTndXWWJLMG5PV0IwVytBZ2lSCjA0U0ZodkN5Wkk4K1BQT3U0Y1N3UzhDVlVJYUh4QTdFN29GNzBNTEw2dytPN1BVMW93by9leEhmNEc3L0hYaFoKVmpRTU5sc3piZ05rbWN3MXhDTDRyb3Nrb1R5Q0ZtT1pVTWxVRXhqYm1UYXc3NWtlOFh0d1V1VytHZG53NkFTMwpwTjc4V1hpK3JXV1VYcVlTejBtdmpaTkc4M1psOXNPaE45TW5OblE1MnJpd21SeXlMcGVzL2tYdUxZUnFFT0JWClJmNkZETFRYQU9NVkpRRzBCOVlUSTV5Q1FFVzNwQStDUm9TVnRSSUxLZ2NVOHVsNUxlNVBlR3JCUDRYVmlYbDUKbSt5R3pDQXpuUnlKbFVnaTV1c0s3Yk1wWUxhdXlTM1NGSTJpT0ppMitPMzl2UHBSCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
   HARBOR_ADMIN_PASSWORD: "SGFyYm9yMTIzNDU="
   POSTGRESQL_PASSWORD: "Y2hhbmdlaXQ="
   REGISTRY_CREDENTIAL_PASSWORD: "aGFyYm9yX3JlZ2lzdHJ5X3Bhc3N3b3Jk"
-  CSRF_KEY: "SFBqeFVzaEQ0b2J1OWNMeWlWTGhjbEp5ZXBOY1N1c1A="
+  CSRF_KEY: "SzBESlNmNlJHS2dmVjR4T0UyU1BuUnVKNE9SQ3hqREg="
+
 ---
 # Source: daytona/charts/harbor/templates/database/database-secret.yaml
 apiVersion: v1
@@ -294,8 +306,9 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
-  JOBSERVICE_SECRET: "cUQ4SE5DZ1VDdFVoSTZ3VA=="
+  JOBSERVICE_SECRET: "Q3F4VTIwMmo2enZmcUNBNQ=="
   REGISTRY_CREDENTIAL_PASSWORD: "aGFyYm9yX3JlZ2lzdHJ5X3Bhc3N3b3Jk"
+
 ---
 # Source: daytona/charts/harbor/templates/registry/registry-secret.yaml
 apiVersion: v1
@@ -315,7 +328,7 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
-  REGISTRY_HTTP_SECRET: "SWFVZDVNekZVc3hyYUpkZw=="
+  REGISTRY_HTTP_SECRET: "SUwyU2xwdGNEbm9PT0wwUA=="
   REGISTRY_REDIS_PASSWORD: ""
 ---
 # Source: daytona/charts/harbor/templates/registry/registry-secret.yaml
@@ -336,7 +349,8 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
-  REGISTRY_HTPASSWD: "aGFyYm9yX3JlZ2lzdHJ5X3VzZXI6JDJhJDEwJHBJbkdIYTZsTGhLckN6REVFa2IvTy5ZeE8wVGJqTk5hZGM1ejlwRE5JWWlKRGxKMjhoRE5x"
+  REGISTRY_HTPASSWD: "aGFyYm9yX3JlZ2lzdHJ5X3VzZXI6JDJhJDEwJHYzb21yRkJHM0QxZllLZHUxSEpKMS5MN3RhaVFqQ3ozbDVMeUoxWGVqcFVUa1N0cGFvdGcu"
+
 ---
 # Source: daytona/charts/harbor/templates/registry/registryctl-secret.yaml
 apiVersion: v1
@@ -356,6 +370,7 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
+
 ---
 # Source: daytona/charts/postgresql/templates/secrets.yaml
 apiVersion: v1
@@ -374,6 +389,7 @@ data:
   postgres-password: "cGFzcw=="
   password: "cGFzcw=="
   # We don't auto-generate LDAP password when it's not provided as we do for other passwords
+
 ---
 # Source: daytona/templates/ssh-gateway-secret.yaml
 apiVersion: v1
@@ -393,6 +409,7 @@ data:
   SSH_PRIVATE_PUB_KEY: YzNOb0xXVmtNalUxTVRrZ1FVRkJRVU16VG5waFF6RnNXa1JKTVU1VVJUVkJRVUZCU1V3MFEyaFdSRzh3WkZaRGRERk1WSEJaYVdwVGJsTk9PVmd5TkRoQmJUQkJWWFJsU1VKR1RXVXpPVFVnWTJ4cFpXNTBMV3RsZVFvPQ==
   SSH_HOST_KEY: TFMwdExTMUNSVWRKVGlCUFVFVk9VMU5JSUZCU1NWWkJWRVVnUzBWWkxTMHRMUzBLWWpOQ2JHSnVUbnBoUXpGeVdsaHJkR1JxUlVGQlFVRkJRa2MxZG1KdFZVRkJRVUZGWW0wNWRWcFJRVUZCUVVGQlFVRkJRa0ZCUVVGTmQwRkJRVUYwZW1NeVozUmFWd3BSZVU1VVZYaFBVVUZCUVVORVRuRlJVRWN6YVRkSmMzbG5kbE5PY25GRVdVdHNWRmx1YVVwTVJURXdTRXhPYUdGWlRrWlVZMVpHVVVGQlFVcERWVkkyZEVSc1JXVnlDbEYzUVVGQlFYUjZZekpuZEZwWFVYbE9WRlY0VDFGQlFVRkRSRTV4VVZCSE0yazNTWE41WjNaVFRuSnhSRmxMYkZSWmJtbEtURVV4TUVoTVRtaGhXVTVHVkdOV1JsRUtRVUZCUlVOSFJIUjJSVEEzWmsxSGVXeGtlVkptZEhoaVVFRnpVbFE0Vm1wcGRqRlphalZtTDAxdlIycE1UMFJOTW5CQk9HSmxUSE5wZWt0RE9Va3lkVzlPWjNGV1RncHBaVWxyYzFSWVVXTnpNa1p3WnpCV1RuaFZWa0ZCUVVGRGJrNXNZMjVhYkdOcE1YSmFXR3RDUVdkTlBRb3RMUzB0TFVWT1JDQlBVRVZPVTFOSUlGQlNTVlpCVkVVZ1MwVlpMUzB0TFMwSw==
   API_KEY: c3VwZXJzZWNyZXRhcGlrZXk=
+
 ---
 # Source: daytona/charts/harbor/templates/core/core-cm.yaml
 apiVersion: v1
@@ -450,6 +467,7 @@ data:
   PERMITTED_REGISTRY_TYPES_FOR_PROXY_CACHE: "docker-hub,harbor,azure-acr,ali-acr,aws-ecr,google-gcr,docker-registry,github-ghcr,jfrog-artifactory"
   REPLICATION_ADAPTER_WHITELIST: "ali-acr,aws-ecr,azure-acr,docker-hub,docker-registry,github-ghcr,google-gcr,harbor,huawei-SWR,jfrog-artifactory,tencent-tcr,volcengine-cr"
   QUOTA_UPDATE_PROVIDER: "db"
+
 ---
 # Source: daytona/charts/harbor/templates/jobservice/jobservice-cm-env.yaml
 apiVersion: v1
@@ -481,6 +499,7 @@ data:
   HTTP_PROXY: ""
   HTTPS_PROXY: ""
   NO_PROXY: "release-name-harbor-core,release-name-harbor-jobservice,release-name-harbor-database,release-name-harbor-registry,release-name-harbor-portal,release-name-harbor-trivy,release-name-harbor-exporter,127.0.0.1,localhost,.local,.internal"
+
 ---
 # Source: daytona/charts/harbor/templates/jobservice/jobservice-cm.yaml
 apiVersion: v1
@@ -532,6 +551,7 @@ data:
       max_update_hours: 24
       # the max time for execution in running state without new task created
       max_dangling_hours: 168
+
 ---
 # Source: daytona/charts/harbor/templates/portal/configmap.yaml
 apiVersion: v1
@@ -584,6 +604,7 @@ data:
             }
         }
     }
+
 ---
 # Source: daytona/charts/harbor/templates/registry/registry-cm.yaml
 apiVersion: v1
@@ -656,6 +677,7 @@ data:
     port: 8080
     log_level: info
     registry_config: "/etc/registry/config.yml"
+
 ---
 # Source: daytona/charts/harbor/templates/registry/registryctl-cm.yaml
 apiVersion: v1
@@ -674,6 +696,7 @@ metadata:
     app.kubernetes.io/part-of: harbor
     app.kubernetes.io/version: "2.14.0"
 data:
+
 ---
 # Source: daytona/charts/redis/templates/configmap.yaml
 apiVersion: v1
@@ -708,6 +731,7 @@ data:
     rename-command FLUSHALL ""
     # End of replica configuration
   users.acl: |-
+
 ---
 # Source: daytona/charts/redis/templates/health-configmap.yaml
 apiVersion: v1
@@ -816,6 +840,7 @@ data:
     "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
     "$script_dir/ping_liveness_master.sh" $1 || exit_status=$?
     exit $exit_status
+
 ---
 # Source: daytona/charts/redis/templates/scripts-configmap.yaml
 apiVersion: v1
@@ -948,6 +973,7 @@ data:
         hash: "$2y$10$pQ8jbpk6RWHx/uYJtDey.uCTzVl2ZXg569tp63PE9uisbCYzoARW6"
         username: "admin"
         userID: "1234"
+
 ---
 # Source: daytona/charts/harbor/templates/jobservice/jobservice-pvc.yaml
 kind: PersistentVolumeClaim
@@ -975,6 +1001,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
+
 ---
 # Source: daytona/charts/harbor/templates/registry/registry-pvc.yaml
 kind: PersistentVolumeClaim
@@ -1002,6 +1029,7 @@ spec:
   resources:
     requests:
       storage: 5Gi
+
 ---
 # Source: daytona/templates/dex-pvc.yaml
 apiVersion: v1
@@ -1022,6 +1050,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
+
 ---
 # Source: daytona/templates/runner-manager-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1129,6 +1158,7 @@ spec:
     release: release-name
     app: "harbor"
     component: core
+
 ---
 # Source: daytona/charts/harbor/templates/database/database-svc.yaml
 apiVersion: v1
@@ -1179,6 +1209,7 @@ spec:
     release: release-name
     app: "harbor"
     component: jobservice
+
 ---
 # Source: daytona/charts/harbor/templates/portal/service.yaml
 apiVersion: v1
@@ -1204,6 +1235,7 @@ spec:
     release: release-name
     app: "harbor"
     component: portal
+
 ---
 # Source: daytona/charts/harbor/templates/redis/service.yaml
 apiVersion: v1
@@ -1256,6 +1288,7 @@ spec:
     release: release-name
     app: "harbor"
     component: registry
+
 ---
 # Source: daytona/charts/postgresql/templates/primary/svc-headless.yaml
 apiVersion: v1
@@ -1286,6 +1319,7 @@ spec:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/name: postgresql
     app.kubernetes.io/component: primary
+
 ---
 # Source: daytona/charts/postgresql/templates/primary/svc.yaml
 apiVersion: v1
@@ -1312,6 +1346,7 @@ spec:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/name: postgresql
     app.kubernetes.io/component: primary
+
 ---
 # Source: daytona/charts/redis/templates/headless-svc.yaml
 apiVersion: v1
@@ -1335,6 +1370,7 @@ spec:
   selector:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/name: redis
+
 ---
 # Source: daytona/charts/redis/templates/master/service.yaml
 apiVersion: v1
@@ -1362,6 +1398,7 @@ spec:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/name: redis
     app.kubernetes.io/component: master
+
 ---
 # Source: daytona/charts/redis/templates/replicas/service.yaml
 apiVersion: v1
@@ -1389,6 +1426,7 @@ spec:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/name: redis
     app.kubernetes.io/component: replica
+
 ---
 # Source: daytona/templates/api-service.yaml
 apiVersion: v1
@@ -1414,6 +1452,7 @@ spec:
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: api
+
 ---
 # Source: daytona/templates/dex-service.yaml
 apiVersion: v1
@@ -1439,6 +1478,7 @@ spec:
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: dex
+
 ---
 # Source: daytona/templates/proxy-service.yaml
 apiVersion: v1
@@ -1464,6 +1504,7 @@ spec:
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: proxy
+
 ---
 # Source: daytona/templates/runner-manager-service.yaml
 apiVersion: v1
@@ -1514,6 +1555,7 @@ spec:
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: ssh-gateway
+
 ---
 # Source: daytona/templates/runner-daemonset.yaml
 apiVersion: apps/v1
@@ -1946,6 +1988,14 @@ spec:
               value: "30"
             - name: SANDBOX_START_TIMEOUT_SEC
               value: "60"
+            - name: HEALTHCHECK_INTERVAL
+              value: "10s"
+            - name: HEALTHCHECK_TIMEOUT
+              value: "10s"
+            - name: RUNNER_DOMAIN
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
             # Secrets
             - name: DAYTONA_API_URL
               value: "http://daytona-api:3000/api"
@@ -1985,14 +2035,11 @@ spec:
             - name: CONFIG_FILE_PATH
               value: "/host-token/token.txt"
           volumeMounts:
-            - name: docker-socket
-              mountPath: /var/run/
             - name: host-root
               mountPath: /host
               readOnly: true
             - name: host-var-lib-docker
               mountPath: /var/lib/docker
-              readOnly: true
             - name: logs
               mountPath: /home/daytona/runner
             - name: ssh-keys
@@ -2026,22 +2073,12 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
       volumes:
-        - name: docker-socket
-          hostPath:
-            path: /var/run/
-            type: Directory
-        - name: containerd-socket
-          hostPath:
-            path: /run/containerd/containerd.sock
-            type: Socket
         - name: host-root
           hostPath:
             path: /
             type: Directory
         - name: host-var-lib-docker
-          hostPath:
-            path: /var/lib/docker
-            type: DirectoryOrCreate
+          emptyDir: {}
         - name: logs
           hostPath:
             path: /var/log/daytona-runner
@@ -2058,6 +2095,7 @@ spec:
           hostPath:
             path: /mnt/
             type: Directory
+
 ---
 # Source: daytona/charts/harbor/templates/core/core-dpl.yaml
 apiVersion: apps/v1
@@ -2101,8 +2139,8 @@ spec:
         app.kubernetes.io/component: core
       annotations:
         checksum/configmap: cb4489aca05c214ac39c5d925c2b150c6141126beb7032a80e1c3bb86576b340
-        checksum/secret: 2c233902c9781885edca42b80a84b7d5c03add4c0e08560cc794a70cae364968
-        checksum/secret-jobservice: a5f54a96ec8f25cdef39825a95a177caabef6ea6d47f2cea116a858abb0f8e8d
+        checksum/secret: f3da73b01f51caf4bf061dcfd45c2387ee2939638da478b963572460f4523d9a
+        checksum/secret-jobservice: 10e97c6e2351a11f55850db367a3a69da715e5d754d53e10373acf9f625ad84b
     spec:
       securityContext:
         runAsUser: 10000
@@ -2196,6 +2234,7 @@ spec:
         secret:
       - name: psc
         emptyDir: {}
+
 ---
 # Source: daytona/charts/harbor/templates/jobservice/jobservice-dpl.yaml
 apiVersion: apps/v1
@@ -2243,8 +2282,8 @@ spec:
       annotations:
         checksum/configmap: 244ec50e63efe66fc3ec84e285fa0e8c83e019830b4462a17e81bc3b0745982a
         checksum/configmap-env: 1c2af1daccf2ab6f5e6433b5d6de46e5b3610a14ef6337b0c14980f428212ea0
-        checksum/secret: 1f495bc1986cd83d422f242ed6b37b34b8aa68b2425130fe480bad442bb19f7b
-        checksum/secret-core: 20359028690fc8fda7214c924aefa7f9e18061780fab6d4157fec842eed0209d
+        checksum/secret: 84da21e6a24557065365dde300244194ff0c518f9a110d4276ea8e1f5146ab28
+        checksum/secret-core: d01429768d32e700fe3100c055ddc1e69d0e58da6a9f08e72dc46a3bfa449409
     spec:
       securityContext:
         runAsUser: 10000
@@ -2305,6 +2344,7 @@ spec:
       - name: job-logs
         persistentVolumeClaim:
           claimName: release-name-harbor-jobservice
+
 ---
 # Source: daytona/charts/harbor/templates/portal/deployment.yaml
 apiVersion: apps/v1
@@ -2390,6 +2430,7 @@ spec:
       - name: portal-config
         configMap:
           name: "release-name-harbor-portal"
+
 ---
 # Source: daytona/charts/harbor/templates/registry/registry-dpl.yaml
 apiVersion: apps/v1
@@ -2436,9 +2477,9 @@ spec:
         app.kubernetes.io/component: registry
       annotations:
         checksum/configmap: b2a013a32036502b320d086fb71abf4702ba64f19e1c14222e31a2824982ad92
-        checksum/secret: cd9b2f50f1f7dcc834252f6ae4970f730da63c7684b4a361692e0b64c35d1153
-        checksum/secret-jobservice: c6f6383ed38277d6e1c44b68360a3e8754c41237cf88d361d7d3026b512556f3
-        checksum/secret-core: 90b8f21f80bfc0ce9211ec4b94cc1dafefb4d2549ba9bcc04a4b2df16abfca83
+        checksum/secret: 89a8611128ad25595f37f035a8a9c0d644c8763a3cb0fab78a80be334ee4f69a
+        checksum/secret-jobservice: cd8c6dd98c6d27470977517587c37ac44cce8e3d4842d132877d1da544e1c65f
+        checksum/secret-core: 0833f3b2fe3bb84edf92bac39b88c44193a57c3cab9efee41aa8fd69fd26fb5d
     spec:
       securityContext:
         runAsUser: 10000
@@ -2560,6 +2601,7 @@ spec:
       - name: registry-data
         persistentVolumeClaim:
           claimName: release-name-harbor-registry
+
 ---
 # Source: daytona/templates/api-deployment.yaml
 apiVersion: apps/v1
@@ -2576,6 +2618,11 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: daytona
@@ -2608,7 +2655,7 @@ spec:
               protocol: TCP
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: ""
+              value: "default-runner"
             # Application configuration
             - name: ENVIRONMENT
               value: "production"
@@ -2641,10 +2688,17 @@ spec:
             - name: REDIS_PASSWORD
               value: ""
             # Proxy Configuration
+            # PROXY_DOMAIN intentionally uses bare .baseDomain (no "proxy." prefix).
+            # Sandbox preview URLs are constructed as <port>-<sandboxIdSlice>.<PROXY_DOMAIN>,
+            # so this keeps them at a single subdomain level (e.g. 3000-abc.<base>)
+            # which matches the chart's proxy-ingress wildcard *.<baseDomain> AND the
+            # *.<baseDomain> cert SAN issued by cert-manager. Upstream defaults to
+            # "proxy.<baseDomain>" producing TWO-level URLs that no one-level wildcard
+            # cert/DNS covers — operators hit ERR_CERT_AUTHORITY_INVALID on every preview.
             - name: PROXY_DOMAIN
-              value: "proxy.daytona.example.com"
+              value: "daytona.example.com"
             - name: PROXY_PROTOCOL
-              value: "http"
+              value: "https"
             - name: PROXY_TEMPLATE_URL
               value: "https://{{PORT}}-{{sandboxId}}.daytona.example.com:443"
             - name: PROXY_API_KEY
@@ -2731,7 +2785,7 @@ spec:
               value: "noreply@mail.daytona.io"
             # APP Configuration
             - name: DEFAULT_SNAPSHOT_IMAGE_NAME
-              value: "daytonaio/sandbox:0.5.1-slim"
+              value: "daytonaio/sandbox:0.8.0"
             - name: DEFAULT_SNAPSHOT_NAME
               value: "default-snapshot"
             - name: DEFAULT_RUNNER_DOMAIN
@@ -2743,6 +2797,8 @@ spec:
               value: "CHANGE_ME_RANDOM_SALT_VALUE"
             - name: RUNNER_MANAGER_API_KEY
               value: "runner_manager_secret_key"
+            - name: DEFAULT_RUNNER_API_KEY
+              value: "secret_api_token"
           resources:
             limits:
               memory: 512Mi
@@ -2759,6 +2815,7 @@ spec:
           emptyDir: {}
         - name: var-run
           emptyDir: {}
+
 ---
 # Source: daytona/templates/dex-deployment.yaml
 apiVersion: apps/v1
@@ -2828,6 +2885,7 @@ spec:
         - name: dex-db
           persistentVolumeClaim:
             claimName: release-name-daytona-dex
+
 ---
 # Source: daytona/templates/proxy-deployment.yaml
 apiVersion: apps/v1
@@ -2901,9 +2959,9 @@ spec:
             - name: PROXY_PORT
               value: "4000"
             - name: PROXY_PROTOCOL
-              value: "http"
+              value: "https"
             - name: PROXY_DOMAIN
-              value: "proxy.daytona.example.com:4000"
+              value: "daytona.example.com"
             - name: DAYTONA_API_URL
               value: "http://release-name-daytona-api:3000/api"
             - name: COOKIE_DOMAIN
@@ -2914,6 +2972,7 @@ spec:
             requests:
               cpu: 100m
               memory: 64Mi
+
 ---
 # Source: daytona/templates/runner-manager-deployment.yaml
 apiVersion: apps/v1
@@ -3020,6 +3079,92 @@ spec:
         - name: var-run
           emptyDir: {}
 ---
+# Source: daytona/templates/runner-state-keeper-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-daytona-runner-state-keeper
+  namespace: default
+  labels:
+    helm.sh/chart: daytona-0.0.23
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.183.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: runner-state-keeper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: daytona
+      app.kubernetes.io/instance: release-name
+      app.kubernetes.io/component: runner-state-keeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: daytona
+        app.kubernetes.io/instance: release-name
+        app.kubernetes.io/component: runner-state-keeper
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: keeper
+          image: "docker.io/library/postgres:15-alpine"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: release-name-daytona-postgresql
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: "user"
+            - name: PGDATABASE
+              value: "daytona"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: release-name-daytona-postgresql
+                  key: password
+            - name: POLL_INTERVAL_SECONDS
+              value: "5"
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              echo "daytona-runner-state-keeper starting; poll=${POLL_INTERVAL_SECONDS}s"
+              while true; do
+                psql -At -c "
+                  UPDATE runner
+                  SET state='ready'
+                  WHERE state='unresponsive'
+                    AND \"serviceHealth\" IS NOT NULL
+                    AND NOT EXISTS (
+                      SELECT 1 FROM jsonb_array_elements(\"serviceHealth\") elem
+                      WHERE (elem->>'healthy')::boolean = false
+                    )
+                  RETURNING id, name, state;
+                " 2>&1 | grep -v "^$" | head -5 || true
+                psql -At -c "
+                  UPDATE runner
+                  SET \"proxyUrl\" = \"apiUrl\"
+                  WHERE \"proxyUrl\" IS NULL
+                    AND \"apiUrl\" IS NOT NULL
+                  RETURNING id, name, \"proxyUrl\";
+                " 2>&1 | grep -v "^$" | head -5 || true
+                sleep "${POLL_INTERVAL_SECONDS}"
+              done
+
+---
 # Source: daytona/templates/ssh-gateway-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -3082,6 +3227,7 @@ spec:
             requests:
               cpu: 10m
               memory: 64Mi
+
 ---
 # Source: daytona/charts/harbor/templates/database/database-ss.yaml
 apiVersion: apps/v1
@@ -3495,6 +3641,8 @@ spec:
         resources:
           requests:
             storage: "8Gi"
+        
+
 ---
 # Source: daytona/charts/redis/templates/master/application.yaml
 apiVersion: apps/v1
@@ -3671,6 +3819,8 @@ spec:
         resources:
           requests:
             storage: "8Gi"
+        
+
 ---
 # Source: daytona/charts/redis/templates/replicas/application.yaml
 apiVersion: apps/v1
@@ -3858,6 +4008,8 @@ spec:
         resources:
           requests:
             storage: "8Gi"
+        
+
 ---
 # Source: daytona/charts/harbor/templates/ingress/ingress.yaml
 apiVersion: networking.k8s.io/v1
@@ -3925,6 +4077,7 @@ spec:
             port:
               number: 80
     host: harbor.daytona.example.com
+
 ---
 # Source: daytona/templates/api-ingress.yaml
 apiVersion: networking.k8s.io/v1
@@ -3959,6 +4112,7 @@ spec:
         - "daytona.example.com"
         - "*.daytona.example.com"
       secretName: daytona.example.com-tls
+
 ---
 # Source: daytona/templates/dex-ingress.yaml
 apiVersion: networking.k8s.io/v1
@@ -3992,6 +4146,7 @@ spec:
     - hosts:
         - "dex.daytona.example.com"
       secretName: dex.daytona.example.com-tls
+
 ---
 # Source: daytona/templates/proxy-ingress.yaml
 apiVersion: networking.k8s.io/v1
@@ -4024,7 +4179,7 @@ spec:
                   number: 4000
     # Wildcard host for all subdomains - routes to proxy service
     # This handles sandbox subdomains like: 3000-sandbox-id.daytona.example.com
-    - host: "*.proxy.daytona.example.com"
+    - host: "*.daytona.example.com"
       http:
         paths:
           - path: /
@@ -4035,9 +4190,9 @@ spec:
                 port:
                   number: 4000
   tls:
-    # Use wildcard certificate (covers all subdomains including proxy subdomain)
     - hosts:
-        - "*.proxy.daytona.example.com"
+        - "proxy.daytona.example.com"
+        - "*.daytona.example.com"
       secretName: proxy.daytona.example.com-tls
 ---
 # Source: daytona/templates/api-migration-init-job.yaml
@@ -4102,7 +4257,7 @@ spec:
           args: ["migration:run:init"]
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: ""
+              value: "default-runner"
             # Application configuration
             - name: ENVIRONMENT
               value: "production"
@@ -4136,9 +4291,9 @@ spec:
               value: ""
             # Proxy Configuration
             - name: PROXY_DOMAIN
-              value: "proxy.daytona.example.com"
+              value: "daytona.example.com"
             - name: PROXY_PROTOCOL
-              value: "http"
+              value: "https"
             - name: PROXY_API_KEY
               value: "super_secret_key"
             # SSH Gateway Configuration
@@ -4223,7 +4378,7 @@ spec:
               value: "noreply@mail.daytona.io"
             # APP Configuration
             - name: DEFAULT_SNAPSHOT_IMAGE_NAME
-              value: "daytonaio/sandbox:0.5.1-slim"
+              value: "daytonaio/sandbox:0.8.0"
             - name: DEFAULT_SNAPSHOT_NAME
               value: "default-snapshot"
             - name: DEFAULT_RUNNER_DOMAIN
@@ -4235,6 +4390,8 @@ spec:
               value: "CHANGE_ME_RANDOM_SALT_VALUE"
             - name: RUNNER_MANAGER_API_KEY
               value: "runner_manager_secret_key"
+            - name: DEFAULT_RUNNER_API_KEY
+              value: "secret_api_token"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -4245,6 +4402,7 @@ spec:
           emptyDir: {}
         - name: var-run
           emptyDir: {}
+
 ---
 # Source: daytona/templates/api-migration-post-deploy-job.yaml
 apiVersion: batch/v1
@@ -4308,7 +4466,7 @@ spec:
           args: ["migration:run:post-deploy"]
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: ""
+              value: "default-runner"
             # Application configuration
             - name: ENVIRONMENT
               value: "production"
@@ -4342,9 +4500,9 @@ spec:
               value: ""
             # Proxy Configuration
             - name: PROXY_DOMAIN
-              value: "proxy.daytona.example.com"
+              value: "daytona.example.com"
             - name: PROXY_PROTOCOL
-              value: "http"
+              value: "https"
             - name: PROXY_API_KEY
               value: "super_secret_key"
             # SSH Gateway Configuration
@@ -4429,7 +4587,7 @@ spec:
               value: "noreply@mail.daytona.io"
             # APP Configuration
             - name: DEFAULT_SNAPSHOT_IMAGE_NAME
-              value: "daytonaio/sandbox:0.5.1-slim"
+              value: "daytonaio/sandbox:0.8.0"
             - name: DEFAULT_SNAPSHOT_NAME
               value: "default-snapshot"
             - name: DEFAULT_RUNNER_DOMAIN
@@ -4441,6 +4599,8 @@ spec:
               value: "CHANGE_ME_RANDOM_SALT_VALUE"
             - name: RUNNER_MANAGER_API_KEY
               value: "runner_manager_secret_key"
+            - name: DEFAULT_RUNNER_API_KEY
+              value: "secret_api_token"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -4451,6 +4611,7 @@ spec:
           emptyDir: {}
         - name: var-run
           emptyDir: {}
+
 ---
 # Source: daytona/templates/api-migration-pre-deploy-job.yaml
 apiVersion: batch/v1
@@ -4514,7 +4675,7 @@ spec:
           args: ["migration:run:pre-deploy"]
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: ""
+              value: "default-runner"
             # Application configuration
             - name: ENVIRONMENT
               value: "production"
@@ -4548,9 +4709,9 @@ spec:
               value: ""
             # Proxy Configuration
             - name: PROXY_DOMAIN
-              value: "proxy.daytona.example.com"
+              value: "daytona.example.com"
             - name: PROXY_PROTOCOL
-              value: "http"
+              value: "https"
             - name: PROXY_API_KEY
               value: "super_secret_key"
             # SSH Gateway Configuration
@@ -4635,7 +4796,7 @@ spec:
               value: "noreply@mail.daytona.io"
             # APP Configuration
             - name: DEFAULT_SNAPSHOT_IMAGE_NAME
-              value: "daytonaio/sandbox:0.5.1-slim"
+              value: "daytonaio/sandbox:0.8.0"
             - name: DEFAULT_SNAPSHOT_NAME
               value: "default-snapshot"
             - name: DEFAULT_RUNNER_DOMAIN
@@ -4647,6 +4808,8 @@ spec:
               value: "CHANGE_ME_RANDOM_SALT_VALUE"
             - name: RUNNER_MANAGER_API_KEY
               value: "runner_manager_secret_key"
+            - name: DEFAULT_RUNNER_API_KEY
+              value: "secret_api_token"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -4657,3 +4820,4 @@ spec:
           emptyDir: {}
         - name: var-run
           emptyDir: {}
+

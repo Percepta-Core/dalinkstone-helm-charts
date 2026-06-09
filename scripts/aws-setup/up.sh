@@ -15,7 +15,7 @@
 #
 # Idempotent: re-runnable if interrupted. State persists in .state/.
 # Operator runs against a real AWS account; this script never executes in CI.
-# See /Users/dalinstone/main/test/byoc-overhaul/aws.md for the full test loop.
+# See docs/byoc-overhaul/aws.md (in this repo) for the full test loop.
 set -euo pipefail
 IFS=$'\n\t'
 

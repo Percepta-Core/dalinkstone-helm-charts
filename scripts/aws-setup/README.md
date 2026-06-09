@@ -166,7 +166,7 @@ Override via env vars for a smaller repro (e.g. `RUNNER_COUNT=1` for ~$0.50/hr).
 ## How to run
 
 ```bash
-cd ~/main/test/cmc/aws-repro
+cd scripts/aws-setup/test
 
 export DAYTONA_API_KEY='dtn_paste-personal-key-here'
 export DOMAIN='cmc.yourdomain.com'

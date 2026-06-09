@@ -41,10 +41,20 @@ logs/
 *.backup
 *~
 
-# Environment specific files
+# Environment specific files — block stray dotenv files anywhere in the tree.
+# Patterns cover .env (root or any subdir), .env.* (e.g. .env.local), and
+# *.env / *.envrc (e.g. test.env, prod.env, some-secret.envrc). Negation
+# re-allows .env.example (operator-facing template) and tracked QA fixtures
+# under scripts/<cloud>-setup/.tests/*.env which static-check scripts source
+# via envsubst. Anything else is treated as operator-private.
 .env
-.env.local
-.env.*.local
+.env.*
+.envrc
+*.env
+*.envrc
+!.env.example
+!**/.env.example
+!scripts/*-setup/.tests/*.env
 
 # Kubernetes generated files
 *.generated.yaml
@@ -111,6 +121,7 @@ tmp/
 
 # OMC orchestration state
 .omc/
+.omo/
 
 # Per-script local state (prompts.env, secrets, kubeconfigs, cached SKUs)
 **/.state/

@@ -20,8 +20,8 @@
 #   9. helm dependency build (postgres/redis/minio/harbor) + helm install daytona
 #  10. prints API URL, dashboard URL, Harbor URL, sandbox URL pattern
 #
-# Same Ubuntu 24.04 + v0.183 + no-install.sh constraints as the BYOC azure-setup.
-# See /Users/dalinstone/main/test/byoc-overhaul/azure-oss.md for the test loop.
+# Same Ubuntu 24.04 + v0.184 + no-install.sh constraints as the BYOC azure-setup.
+# See docs/byoc-overhaul/azure-oss.md (in this repo) for the test loop.
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -47,7 +47,7 @@ if [[ -f "$PROMPTS_FILE" ]]; then
   . "$PROMPTS_FILE"
   set +a
 else
-  unset CLUSTER_NAME BASE_DOMAIN CLUSTER_ISSUER_EMAIL CLUSTER_ISSUER \
+  unset CLUSTER_NAME BASE_DOMAIN CLUSTER_ISSUER_EMAIL CLUSTER_ISSUER TLS_MODE \
         AZURE_LOCATION RESOURCE_GROUP RUNNER_IMAGE_TAG AZURE_NODE_VM_SIZE
 fi
 if [[ -f "$SECRETS_FILE" ]]; then
@@ -61,17 +61,40 @@ fi
 omc::log INFO "=== Daytona FULL OSS Self-Hosted: Azure AKS bring-up ==="
 omc::prompt CLUSTER_NAME "Cluster name" "daytona-oss-$(date +%Y%m%d-%H%M%S)"
 omc::prompt BASE_DOMAIN  "Public base DNS domain (e.g. daytona.mycompany.com)"
-omc::prompt CLUSTER_ISSUER_EMAIL "Email for Let's Encrypt ClusterIssuer"
+omc::prompt_choice TLS_MODE \
+  "TLS strategy for the api/proxy/dex/harbor ingresses:
+  cloudflare-dns01 = automatic Let's Encrypt via Cloudflare DNS-01 (handles wildcard SANs, recommended for prod)
+  self-signed      = chart generates self-signed certs (browser warnings; dev/test only)
+  manual           = operator pre-creates Secret named <baseDomain>-tls (advanced; you manage cert rotation)" \
+  cloudflare-dns01 self-signed manual
 omc::prompt AZURE_LOCATION "Azure region" "eastus"
 omc::prompt RESOURCE_GROUP "Azure resource group" "${CLUSTER_NAME}-rg"
-omc::prompt RUNNER_IMAGE_TAG "Runner image tag" "v0.183.0"
+omc::prompt RUNNER_IMAGE_TAG \
+  "Daytona image tag (applied to api/proxy/runner/runnermanager/ssh-gateway).
+  Default is v0.184.0-k8s-oss.1-amd64, NOT .3. The .3 patch ships a runner-side
+  bug where the v2 healthcheck goroutine sends ONE heartbeat after boot and then
+  silently stops (container stays alive, restartCount=0, lastChecked frozen),
+  which causes the api's 60s unresponsive-threshold check to flip the runner
+  to UNRESPONSIVE permanently and triggers REMOVE_SNAPSHOT cleanup of the
+  default snapshot. The .1 patch is the latest .3-incompatible-bug-free k8s-oss
+  variant that exists for ALL 5 services (api/proxy/runner/runnermanager/ssh-gateway).
+  daytona-runner-manager has no v0.183.x tags at all (its repo skips from v0.174.0
+  straight to v0.184.0-k8s-oss.1-amd64), so a full v0.183 revert is impossible." \
+  "v0.184.0-k8s-oss.1-amd64"
 
-CLUSTER_ISSUER="letsencrypt-prod"
+CLUSTER_ISSUER=""
+if [[ "$TLS_MODE" == "cloudflare-dns01" ]]; then
+  omc::prompt CLUSTER_ISSUER_EMAIL "Email for Let's Encrypt ClusterIssuer (used for cert expiry warnings)"
+  omc::prompt_secret CLOUDFLARE_API_TOKEN \
+    "Cloudflare API token (Zone:Read + Zone DNS:Edit scopes for ${BASE_DOMAIN}'s zone)"
+  CLUSTER_ISSUER="letsencrypt-prod"
+fi
 
 {
   printf 'export CLUSTER_NAME=%q\n' "$CLUSTER_NAME"
   printf 'export BASE_DOMAIN=%q\n'  "$BASE_DOMAIN"
-  printf 'export CLUSTER_ISSUER_EMAIL=%q\n' "$CLUSTER_ISSUER_EMAIL"
+  printf 'export TLS_MODE=%q\n'     "$TLS_MODE"
+  printf 'export CLUSTER_ISSUER_EMAIL=%q\n' "${CLUSTER_ISSUER_EMAIL:-}"
   printf 'export CLUSTER_ISSUER=%q\n' "$CLUSTER_ISSUER"
   printf 'export AZURE_LOCATION=%q\n' "$AZURE_LOCATION"
   printf 'export RESOURCE_GROUP=%q\n' "$RESOURCE_GROUP"
@@ -91,6 +114,9 @@ if [[ ! -f "$SECRETS_FILE" ]]; then
     printf 'export REDIS_PASSWORD=%q\n'        "$REDIS_PASSWORD"
     printf 'export MINIO_ROOT_PASSWORD=%q\n'   "$MINIO_ROOT_PASSWORD"
     printf 'export HARBOR_ADMIN_PASSWORD=%q\n' "$HARBOR_ADMIN_PASSWORD"
+    if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+      printf 'export CLOUDFLARE_API_TOKEN=%q\n'  "$CLOUDFLARE_API_TOKEN"
+    fi
   } > "$SECRETS_FILE"
   chmod 600 "$SECRETS_FILE"
   omc::log INFO "Auto-generated subchart secrets -> $SECRETS_FILE (mode 0600)"
@@ -185,11 +211,26 @@ omc::verify_node_ubuntu "24.04" "daytona-sandbox-c=true" 300
 omc::log INFO "=== Step 6/10: daytona namespace ==="
 kubectl create namespace daytona --dry-run=client -o yaml | kubectl apply -f -
 
-# === 7. ingress-nginx + cert-manager + ClusterIssuer =========================
-omc::log INFO "=== Step 7/10: ingress-nginx + cert-manager ==="
+# === 7. ingress-nginx + (optional) cert-manager + (optional) ClusterIssuer ===
+omc::log INFO "=== Step 7/10: ingress-nginx + cert provisioning (mode=$TLS_MODE) ==="
 omc::ingress_nginx_install
-omc::cert_manager_install
-omc::cluster_issuer_apply "$CLUSTER_ISSUER_EMAIL"
+case "$TLS_MODE" in
+  cloudflare-dns01)
+    omc::cert_manager_install
+    omc::cluster_issuer_apply_cf_dns01 "$CLUSTER_ISSUER_EMAIL" "$CLOUDFLARE_API_TOKEN"
+    ;;
+  self-signed)
+    omc::log INFO "TLS_MODE=self-signed: skipping cert-manager; chart will genSignedCert at install time"
+    ;;
+  manual)
+    omc::log INFO "TLS_MODE=manual: skipping cert-manager; you must pre-create the TLS Secret"
+    omc::log INFO "  Required secrets in namespace daytona BEFORE step 9:"
+    omc::log INFO "    ${BASE_DOMAIN}-tls          (covers ${BASE_DOMAIN} + *.${BASE_DOMAIN})"
+    omc::log INFO "    harbor.${BASE_DOMAIN}-tls   (covers harbor.${BASE_DOMAIN})"
+    omc::confirm "Have you pre-created both TLS Secrets in namespace daytona?" \
+      || omc::die "Aborted; pre-create the Secrets then re-run."
+    ;;
+esac
 
 # === 8. Wait for LoadBalancer + DNS records ==================================
 omc::log INFO "=== Step 8/10: Wait for LoadBalancer + DNS ==="
@@ -229,8 +270,26 @@ if [[ ! -d "$SCRIPT_DIR/../../charts/daytona/charts" ]] \
   omc::log INFO "Helm dependencies built (postgres + redis + minio + harbor)"
 fi
 
+case "$TLS_MODE" in
+  cloudflare-dns01)
+    CERT_MANAGER_ANNOTATION='        cert-manager.io/cluster-issuer: "letsencrypt-prod"'
+    INGRESS_SELFSIGNED="false"
+    HARBOR_CERT_SOURCE="secret"
+    ;;
+  self-signed)
+    CERT_MANAGER_ANNOTATION=""
+    INGRESS_SELFSIGNED="true"
+    HARBOR_CERT_SOURCE="auto"
+    ;;
+  manual)
+    CERT_MANAGER_ANNOTATION=""
+    INGRESS_SELFSIGNED="false"
+    HARBOR_CERT_SOURCE="secret"
+    ;;
+esac
 export CLUSTER_NAME BASE_DOMAIN CLUSTER_ISSUER RUNNER_IMAGE_TAG \
        POSTGRES_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD HARBOR_ADMIN_PASSWORD \
+       CERT_MANAGER_ANNOTATION INGRESS_SELFSIGNED HARBOR_CERT_SOURCE \
        INTERNAL_REGISTRY_HOST=""
 omc::render_template "$SCRIPT_DIR/values-oss.yaml.tmpl" "$VALUES_OUT"
 

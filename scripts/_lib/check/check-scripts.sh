@@ -5,7 +5,7 @@
 # Hard-fail on warning, error, fatal severities.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
 FAIL=0
@@ -40,7 +40,7 @@ if [[ -d "scripts/_lib" ]]; then
   lint_scripts_in_dir "scripts/_lib" true
 fi
 
-for dir in scripts/aws-setup scripts/azure-setup scripts/gcs-setup; do
+for dir in scripts/aws-setup scripts/azure-setup scripts/gcs-setup scripts/azure-oss-setup; do
   if [[ ! -d "$dir" ]]; then
     echo "MISSING setup dir: $dir"
     FAIL=1
@@ -53,7 +53,7 @@ for dir in scripts/aws-setup scripts/azure-setup scripts/gcs-setup; do
 done
 
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK: shellcheck warning-level clean for scripts/_lib/ + scripts/{aws,azure,gcs}-setup/*.sh (legacy tolerated)"
+  echo "OK: shellcheck warning-level clean for scripts/_lib/ + scripts/{aws,azure,gcs,azure-oss}-setup/*.sh (legacy tolerated)"
 else
   echo "FAILED: ${#EXIT_NONZERO_SCRIPTS[@]} script(s) had warning-level findings"
   for s in "${EXIT_NONZERO_SCRIPTS[@]}"; do echo "  $s"; done
