@@ -11,20 +11,20 @@ from __future__ import annotations
 import os
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
 from daytona import Daytona, DaytonaConfig
 
 from _helpers import (
     assert_self_hosted,
     code_run_via_proxy,
     fail,
+    load_test_env,
     setup_ssl_skip_if_requested,
 )
 
 
 def main() -> "None":
+    load_test_env()
     setup_ssl_skip_if_requested()
-    load_dotenv()
 
     api_url = os.environ.get("DAYTONA_API_URL", "").rstrip("/")
     api_key = os.environ.get("DAYTONA_API_KEY", "")
