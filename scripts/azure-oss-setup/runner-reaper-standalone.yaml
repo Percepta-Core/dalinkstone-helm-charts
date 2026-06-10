@@ -1,0 +1,84 @@
+# Daytona runner-reaper — standalone version for existing installs.
+#
+# Reaps dead runner rows so the runner-manager's autoscaler can replace them.
+# Without this, anything that rolls the runner DaemonSet (deploys, node
+# recycles) leaves a stale "registered" runner row in the DB; the manager
+# counts it toward MIN_RUNNERS and never re-pushes credentials to the new
+# pod, so runners stay broken until someone intervenes. This job deletes
+# rows whose heartbeat has been dead for 5+ minutes, which lets the manager
+# register a fresh runner automatically. Healthy runners heartbeat every
+# ~10s and are never eligible.
+#
+# EDIT THE FOUR VALUES MARKED "EDIT ME" to match your install, then:
+#   kubectl apply -f runner-reaper-standalone.yaml
+#
+# NOTE: named "-manual" so it won't collide if you later upgrade to a chart
+# version that ships this built in — delete this one after that upgrade:
+#   kubectl -n <namespace> delete cronjob daytona-runner-reaper-manual
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daytona-runner-reaper-manual
+  namespace: default # EDIT ME: namespace your Daytona release is installed in
+  labels:
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/component: runner-reaper
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: daytona
+            app.kubernetes.io/component: runner-reaper
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reaper
+              image: "docker.io/library/postgres:17-alpine"
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c"]
+              args:
+                - |
+                  STALE_MIN="${STALE_AFTER_MINUTES:-5}"
+                  echo "Reaping runner rows with no heartbeat for >= ${STALE_MIN} minutes..."
+                  psql -v ON_ERROR_STOP=1 \
+                    -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_DATABASE" <<SQL
+                  DELETE FROM runner
+                  WHERE (state = 'unresponsive'
+                         AND "lastChecked" IS NOT NULL
+                         AND "lastChecked" < now() - interval '${STALE_MIN} minutes')
+                     OR (state IN ('initializing', 'unresponsive')
+                         AND "lastChecked" IS NULL
+                         AND "updatedAt" < now() - interval '${STALE_MIN} minutes');
+                  SQL
+                  echo "Reap complete"
+              env:
+                - name: STALE_AFTER_MINUTES
+                  value: "5"
+                - name: DB_HOST
+                  value: "daytona-postgresql" # EDIT ME: <helm-release-name>-postgresql
+                - name: DB_PORT
+                  value: "5432"
+                - name: DB_DATABASE
+                  value: "daytona" # matches chart default; change if you overrode postgresql.auth.database
+                - name: DB_USERNAME
+                  value: "user" # matches chart default; change if you overrode postgresql.auth.username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: daytona-postgresql # EDIT ME: <helm-release-name>-postgresql
+                      key: password
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi

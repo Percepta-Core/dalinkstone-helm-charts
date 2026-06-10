@@ -1,0 +1,79 @@
+{{- if and .Values.services.runner.enabled .Values.services.runnerReaper.enabled .Values.postgresql.enabled }}
+{{- /*
+Reaps dead runner rows so the runner-manager's autoscaler can replace them.
+
+Why this exists: the k8s-oss runner-manager scales runner instances only
+while active DB runners < MIN_RUNNERS, and it counts initializing/unresponsive
+rows as active. When a sandbox node is recycled (AKS delete-machines, scale
+events, VM faults) the runner row it backed goes unresponsive forever — no
+component retires it (verified against runner-manager v0.184.0-k8s-oss.1:
+neither the periodic check loop nor a manager restart reaps it) — so the
+floor stays satisfied and NO replacement runner is ever registered on the new
+node. Deleting rows whose heartbeat has been dead for staleAfterMinutes
+un-wedges the autoscaler: it creates a fresh placeholder, registers a new
+runner row and pushes config to the DaemonSet runner pod on the replacement
+node. Healthy runners heartbeat every ~10s and are never eligible.
+*/}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "daytona.fullname" . }}-runner-reaper
+  namespace: {{ include "daytona.namespace" . }}
+  labels:
+    {{- include "daytona.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runner-reaper
+spec:
+  schedule: {{ .Values.services.runnerReaper.schedule | default "*/2 * * * *" | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            {{- include "daytona.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: runner-reaper
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reaper
+              image: "{{ .Values.services.runnerReaper.image.registry }}/{{ .Values.services.runnerReaper.image.repository }}:{{ .Values.services.runnerReaper.image.tag }}"
+              imagePullPolicy: {{ .Values.services.runnerReaper.image.pullPolicy | default "IfNotPresent" }}
+              command: ["sh", "-c"]
+              args:
+                - |
+                  STALE_MIN="${STALE_AFTER_MINUTES:-5}"
+                  echo "Reaping runner rows with no heartbeat for >= ${STALE_MIN} minutes..."
+                  psql -v ON_ERROR_STOP=1 \
+                    -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_DATABASE" <<SQL
+                  DELETE FROM runner
+                  WHERE (state = 'unresponsive'
+                         AND "lastChecked" IS NOT NULL
+                         AND "lastChecked" < now() - interval '${STALE_MIN} minutes')
+                     OR (state IN ('initializing', 'unresponsive')
+                         AND "lastChecked" IS NULL
+                         AND "updatedAt" < now() - interval '${STALE_MIN} minutes');
+                  SQL
+                  echo "Reap complete"
+              env:
+                - name: STALE_AFTER_MINUTES
+                  value: {{ .Values.services.runnerReaper.staleAfterMinutes | default 5 | quote }}
+                - name: DB_HOST
+                  value: {{ printf "%s-postgresql" .Release.Name | quote }}
+                - name: DB_PORT
+                  value: "5432"
+                - name: DB_DATABASE
+                  value: {{ .Values.postgresql.auth.database | default "daytona" | quote }}
+                - name: DB_USERNAME
+                  value: {{ .Values.postgresql.auth.username | default "user" | quote }}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ printf "%s-postgresql" .Release.Name }}
+                      key: password
+              resources:
+                {{- toYaml .Values.services.runnerReaper.resources | nindent 16 }}
+{{- end }}

@@ -192,11 +192,12 @@ az aks get-credentials \
   --overwrite-existing >/dev/null
 kubectl config current-context
 
-# === 4b. ENFORCE Ubuntu 24.04 on the sandbox node pool ======================
+# === 4b. ENFORCE Ubuntu 24.04 on all AKS nodes and the sandbox node pool =====
 # The Daytona helm chart docker-installer targets Ubuntu 24.04 (noble) .deb
 # packages. AKS docker-installer tarball fallback handles the moby-containerd
 # conflict, but the deb package URL is still Ubuntu-version-specific.
 # NO EXCEPTIONS — fail-fast if anything else.
+omc::verify_node_ubuntu "24.04" "" 300
 omc::verify_node_ubuntu "24.04" "daytona-sandbox-c=true" 300
 
 # === 5. Namespace ============================================================

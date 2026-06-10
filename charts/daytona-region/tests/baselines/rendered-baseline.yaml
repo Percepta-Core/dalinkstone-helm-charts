@@ -12,6 +12,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: proxy
+
 ---
 # Source: daytona-region/templates/runner-manager-serviceaccount.yaml
 apiVersion: v1
@@ -26,6 +27,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: runnermanager
+
 ---
 # Source: daytona-region/templates/runner-serviceaccount.yaml
 apiVersion: v1
@@ -40,6 +42,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: runner
+
 ---
 # Source: daytona-region/templates/ssh-gateway-serviceaccount.yaml
 apiVersion: v1
@@ -54,6 +57,7 @@ metadata:
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: ssh-gateway
+
 ---
 # Source: daytona-region/templates/runner-secret.yaml
 apiVersion: v1
@@ -79,6 +83,7 @@ stringData:
   AWS_SECRET_ACCESS_KEY: ""
   AWS_DEFAULT_BUCKET: ""
   SSH_PUBLIC_KEY: ""
+
 ---
 # Source: daytona-region/templates/ssh-gateway-secret.yaml
 apiVersion: v1
@@ -98,6 +103,7 @@ data:
   SSH_PRIVATE_PUB_KEY: 
   SSH_HOST_KEY: 
   API_KEY: c3VwZXJzZWNyZXRhcGlrZXk=
+
 ---
 # Source: daytona-region/templates/runner-configmap.yaml
 apiVersion: v1
@@ -131,6 +137,7 @@ data:
   # Static
   DAEMON_BINARIES_DIR: "/var/lib/daytona/binaries"
   CONFIG_FILE_PATH: "/host-token/token.txt"
+
 ---
 # Source: daytona-region/templates/runner-docker-installer-configmap.yaml
 apiVersion: v1
@@ -148,6 +155,7 @@ metadata:
 data:
   XFS_STORAGE_SIZE: "50G"
   AIRGAPPED_MODE: "false"
+
 ---
 # Source: daytona-region/templates/runner-manager-clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -165,6 +173,7 @@ rules:
 - apiGroups: [""]
   resources: ["nodes"]
   verbs: ["get", "list", "update", "patch"]
+
 ---
 # Source: daytona-region/templates/runner-manager-clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -186,6 +195,7 @@ subjects:
 - kind: ServiceAccount
   name: release-name-daytona-region-runnermanager
   namespace: default
+
 ---
 # Source: daytona-region/templates/runner-manager-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -210,6 +220,7 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+
 ---
 # Source: daytona-region/templates/runner-manager-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -232,6 +243,7 @@ subjects:
 - kind: ServiceAccount
   name: release-name-daytona-region-runnermanager
   namespace: default
+
 ---
 # Source: daytona-region/templates/proxy-service.yaml
 apiVersion: v1
@@ -257,6 +269,7 @@ spec:
     app.kubernetes.io/name: daytona-region
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: proxy
+
 ---
 # Source: daytona-region/templates/runner-manager-service.yaml
 apiVersion: v1
@@ -282,6 +295,7 @@ spec:
     app.kubernetes.io/name: daytona-region
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: runnermanager
+
 ---
 # Source: daytona-region/templates/ssh-gateway-service.yaml
 apiVersion: v1
@@ -307,6 +321,7 @@ spec:
     app.kubernetes.io/name: daytona-region
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/component: ssh-gateway
+
 ---
 # Source: daytona-region/templates/runner-daemonset.yaml
 apiVersion: apps/v1
@@ -355,7 +370,7 @@ spec:
       containers:
         # Docker installer sidecar - installs Docker on the host node
         - name: docker-installer
-          image: ubuntu:22.04
+          image: ubuntu:24.04
           securityContext:
             privileged: true
           envFrom:
@@ -963,6 +978,7 @@ spec:
             requests:
               cpu: 100m
               memory: 64Mi
+
 ---
 # Source: daytona-region/templates/runner-manager-deployment.yaml
 apiVersion: apps/v1
@@ -1068,6 +1084,7 @@ spec:
           emptyDir: {}
         - name: var-run
           emptyDir: {}
+
 ---
 # Source: daytona-region/templates/ssh-gateway-deployment.yaml
 apiVersion: apps/v1
@@ -1131,6 +1148,7 @@ spec:
             requests:
               cpu: 10m
               memory: 64Mi
+
 ---
 # Source: daytona-region/templates/proxy-ingress.yaml
 apiVersion: networking.k8s.io/v1
@@ -1220,6 +1238,7 @@ metadata:
 type: Opaque
 data:
   daytona-api-key: "dGVzdC1hcGkta2V5LXBsYWNlaG9sZGVy"
+
 ---
 # Source: daytona-region/templates/region-registration-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1268,6 +1287,7 @@ subjects:
   - kind: ServiceAccount
     name: release-name-daytona-region-region-registration
     namespace: default
+
 ---
 # Source: daytona-region/templates/region-registration-hook.yaml
 apiVersion: batch/v1

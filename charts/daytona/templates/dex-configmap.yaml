@@ -47,6 +47,9 @@ data:
           {{- if and .Values.services.api.ingress.enabled $templatedApiHostname }}
           - {{ printf "https://%s" $templatedApiHostname | quote }}
           - {{ printf "https://%s/api/oauth2-redirect.html" $templatedApiHostname | quote }}
+          # Sandbox preview auth: the proxy redirects to https://<base>/callback
+          # (baseHost of one-level preview hosts like 3000-<id>.<base>).
+          - {{ printf "https://%s/callback" $templatedApiHostname | quote }}
           - {{ printf "https://proxy.%s/callback" $templatedApiHostname | quote }}
           - {{ printf "https://proxy.%s" $templatedApiHostname | quote }}
           {{- end }}

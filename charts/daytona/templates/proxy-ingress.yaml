@@ -35,6 +35,23 @@ spec:
   ingressClassName: {{ .Values.services.proxy.ingress.className }}
   {{- end }}
   rules:
+    # OAuth callback for sandbox preview auth on the BASE domain. The proxy
+    # builds its OIDC redirect_uri as https://<baseHost>/callback where
+    # baseHost is the preview host minus its first label (so
+    # 3000-<sandboxId>.<base> -> <base>). The base host otherwise belongs to
+    # the api ingress; this longer-prefix path routes just /callback to the
+    # proxy (ingress-nginx merges same-host rules across Ingress resources,
+    # longest path wins). Without it the callback 404s on the api.
+    - host: {{ $templatedBaseDomain | quote }}
+      http:
+        paths:
+          - path: /callback
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}-proxy
+                port:
+                  number: {{ $svcPort }}
     # Proxy subdomain (exact match, e.g., proxy.daytona.example.com)
     - host: {{ $proxyHostname | quote }}
       http:
@@ -82,8 +99,19 @@ spec:
   {{- if .Values.services.proxy.ingress.tls }}
   tls:
     - hosts:
-        - {{ $proxyHostname | quote }}
+        # proxy.<baseDomain> is intentionally NOT listed even though it is a
+        # rule host above: the wildcard entry already matches it for
+        # ingress-nginx cert selection, and Let's Encrypt rejects any order
+        # that pairs an exact name with a wildcard covering it ("redundant
+        # with a wildcard domain in the same request", 400 malformed) — so
+        # listing it means the proxy cert never issues on ANY domain.
         - {{ $wildcardBaseDomain | quote }}
+        # The bare base domain carries the /callback rule above. It MUST also
+        # be listed here: with the host present in rules but absent from tls,
+        # ingress-nginx binds the base-domain server to THIS ingress without a
+        # certificate and serves its Fake Certificate, breaking TLS for the
+        # api/dashboard host.
+        - {{ $templatedBaseDomain | quote }}
       secretName: {{ .Values.services.proxy.ingress.tlsSecretName | default (printf "proxy.%s-tls" $templatedBaseDomain) }}
     {{- if .Values.services.proxy.ingress.extraTls }}
     {{- toYaml .Values.services.proxy.ingress.extraTls | nindent 4 }}

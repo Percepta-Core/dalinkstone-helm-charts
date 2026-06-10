@@ -45,7 +45,7 @@ Answers persist in `scripts/azure-setup/.state/prompts.env`.
 
 ## What the script does
 
-1. **Resource group** + **AKS cluster** with `--enable-oidc-issuer --enable-workload-identity --os-sku Ubuntu2404`. ~10-15 min. After cluster create + sandbox node pool join, the `omc::verify_node_ubuntu "24.04"` gate fails-fast if any sandbox node reports something other than Ubuntu 24.04 — no exceptions, no override flag.
+1. **Resource group** + **AKS cluster** with `--enable-oidc-issuer --enable-workload-identity --os-sku Ubuntu2404`. ~10-15 min. After cluster create + sandbox node pool join, the `omc::verify_node_ubuntu "24.04"` gates fail-fast if any AKS node reports something other than Ubuntu 24.04 — no exceptions, no override flag.
 2. **Sandbox node pool** with `daytona-sandbox-c=true` label + `sandbox=true:NoSchedule` taint.
 3. **Storage Account** (Standard_LRS, StorageV2) + **Blob container**.
 4. **kubeconfig** via `az aks get-credentials`.
@@ -69,7 +69,7 @@ kubectl -n daytona logs daemonset/daytona-region-runner -c docker-installer | \
   grep -E 'static.*tarball|dockerd not installed by deb'
 ```
 
-**The tarball-fallback log line** is the Prompt 1 d1892ef proof. AKS-managed nodes (Ubuntu 24.04 in current up.sh, since the chart's docker-installer downloads Ubuntu 24.04/noble .deb packages) ship `moby-containerd`, which conflicts with `docker-ce` at apt install time. The docker-installer detects the missing `/usr/bin/dockerd` after the deb step and falls back to installing Docker from the official static tarball at `download.docker.com/linux/static/stable/x86_64/docker-27.4.1.tgz`. EKS + GKE don't hit this path; AKS does. The up.sh script enforces `--os-sku Ubuntu2404` + an `omc::verify_node_ubuntu` gate that refuses to continue if nodes aren't on Ubuntu 24.04.
+**The tarball-fallback log line** is the Prompt 1 d1892ef proof. AKS-managed nodes (Ubuntu 24.04 in current up.sh, since the chart's docker-installer downloads Ubuntu 24.04/noble .deb packages) ship `moby-containerd`, which conflicts with `docker-ce` at apt install time. The docker-installer detects the missing `/usr/bin/dockerd` after the deb step and falls back to installing Docker from the official static tarball at `download.docker.com/linux/static/stable/x86_64/docker-27.4.1.tgz`. EKS + GKE don't hit this path; AKS does. The up.sh script enforces `--os-sku Ubuntu2404` + `omc::verify_node_ubuntu` gates that refuse to continue if any AKS node isn't on Ubuntu 24.04.
 
 ## Smoke test
 

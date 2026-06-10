@@ -47,12 +47,12 @@ You also need:
 - A **Daytona Cloud admin API key** from <https://app.daytona.io/dashboard/keys>.
 - An **email address** for Let's Encrypt account registration (any address you receive mail at).
 
-## Hard requirement: Ubuntu 24.04 sandbox nodes (NO EXCEPTIONS)
+## Hard requirement: Ubuntu 24.04 nodes (NO EXCEPTIONS)
 
 The Daytona helm chart's docker-installer downloads Ubuntu 24.04 (noble) `.deb` packages directly. Running on any other Ubuntu version will fail when the runner tries to bootstrap Docker on the node. Each `up.sh` script:
 
 1. Explicitly requests Ubuntu 24.04 from the cloud (`amiFamily: Ubuntu2404` on EKS, `--os-sku Ubuntu2404` on AKS, `--image-type=UBUNTU_CONTAINERD` with GKE stable channel for GKE 1.31+).
-2. After cluster + node pool join, calls `omc::verify_node_ubuntu "24.04"` which polls each sandbox node's `status.nodeInfo.osImage` and **refuses to continue** if any node is on a different Ubuntu version.
+2. After cluster + node pool join, calls `omc::verify_node_ubuntu "24.04"` which polls `status.nodeInfo.osImage` and **refuses to continue** if any required node is on a different Ubuntu version. Azure checks every AKS node, then checks the sandbox selector again.
 
 There is no operator override flag. If the verify gate fails, either: (a) tear down and re-run (which requests Ubuntu 24.04 explicitly), (b) try a different cloud region where Ubuntu 24.04 is GA, or (c) upgrade your cloud CLI to one that supports Ubuntu 24.04.
 

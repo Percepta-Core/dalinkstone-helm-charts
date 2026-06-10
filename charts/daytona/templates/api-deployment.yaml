@@ -40,6 +40,162 @@ spec:
       serviceAccountName: {{ include "daytona.serviceAccountName" (dict "Values" .Values "service" "api" "Chart" .Chart "Release" .Release) }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for postgres at ${DB_HOST}:${DB_PORT}..."
+              until nc -z -w 2 "${DB_HOST}" "${DB_PORT}"; do
+                sleep 3
+              done
+              echo "postgres reachable"
+          env:
+            {{- if .Values.postgresql.enabled }}
+            - name: DB_HOST
+              value: {{ printf "%s-postgresql" .Release.Name | quote }}
+            - name: DB_PORT
+              value: "5432"
+            {{- else }}
+            - name: DB_HOST
+              value: {{ .Values.externalDatabase.host | default (.Values.services.api.env.DB_HOST | default "") | quote }}
+            - name: DB_PORT
+              value: {{ .Values.externalDatabase.port | default (.Values.services.api.env.DB_PORT | default "5432") | quote }}
+            {{- end }}
+        {{- if or .Values.redis.enabled .Values.externalRedis.host }}
+        - name: wait-for-redis
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for redis at ${REDIS_HOST}:${REDIS_PORT}..."
+              until nc -z -w 2 "${REDIS_HOST}" "${REDIS_PORT}"; do
+                sleep 3
+              done
+              echo "redis reachable"
+          env:
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_HOST
+              value: {{ printf "%s-redis-master" .Release.Name | quote }}
+            - name: REDIS_PORT
+              value: "6379"
+            {{- else }}
+            - name: REDIS_HOST
+              value: {{ .Values.externalRedis.host | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.externalRedis.port | default (.Values.services.api.env.REDIS_PORT | default "6379") | quote }}
+            {{- end }}
+        {{- end }}
+        {{- if .Values.minio.enabled }}
+        - name: wait-for-minio
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for minio at ${S3_HOST}:${S3_PORT}..."
+              until nc -z -w 2 "${S3_HOST}" "${S3_PORT}"; do
+                sleep 3
+              done
+              echo "minio reachable"
+          env:
+            - name: S3_HOST
+              value: {{ printf "%s-minio" .Release.Name | quote }}
+            - name: S3_PORT
+              value: {{ (.Values.minio.service.port | default 9000) | quote }}
+        {{- end }}
+        {{- if .Values.dex.enabled }}
+        - name: wait-for-dex
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for dex at ${DEX_HOST}:${DEX_PORT}..."
+              until nc -z -w 2 "${DEX_HOST}" "${DEX_PORT}"; do
+                sleep 3
+              done
+              echo "dex reachable"
+          env:
+            - name: DEX_HOST
+              value: {{ printf "%s-dex" (include "daytona.fullname" .) | quote }}
+            - name: DEX_PORT
+              value: {{ .Values.dex.service.port | default 5556 | quote }}
+        {{- end }}
+        # Applies ALL pending DB migrations before the api container starts.
+        # The init data-source globs migrations recursively (src/migrations/**),
+        # so on a fresh database this also applies the pre-deploy and post-deploy
+        # sets (e.g. the runner/sandbox sandboxClass columns) in timestamp order.
+        # Required because `helm install --wait` only fires post-install hook
+        # jobs AFTER the api Deployment is Ready — an api booting against an
+        # unmigrated database can never become Ready, which wedges fresh
+        # installs forever. The hook jobs remain for staged zero-downtime
+        # upgrades; this initContainer is a no-op when the schema is current.
+        - name: run-migrations
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ include "daytona.imageRegistry" (dict "Values" .Values "serviceRegistry" .Values.services.api.image.registry) }}/{{ .Values.services.api.image.repository }}:{{ .Values.services.api.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.services.api.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Applying database migrations (recursive init data-source catch-up)..."
+              attempt=1
+              until yarn migration:run:init; do
+                if [ "$attempt" -ge 5 ]; then
+                  echo "Migrations still failing after ${attempt} attempts; giving up" >&2
+                  exit 1
+                fi
+                attempt=$((attempt+1))
+                echo "Migration run failed (transient DB error or concurrent run); retry ${attempt}/5 in 10s..."
+                sleep 10
+              done
+              echo "Database schema is up to date"
+          env:
+            {{- if .Values.postgresql.enabled }}
+            - name: DB_HOST
+              value: {{ printf "%s-postgresql" .Release.Name | quote }}
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_DATABASE
+              value: {{ .Values.postgresql.auth.database | default "daytona" | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.postgresql.auth.username | default "user" | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ printf "%s-postgresql" .Release.Name }}
+                  key: password
+            {{- else }}
+            - name: DB_HOST
+              value: {{ .Values.externalDatabase.host | default (.Values.services.api.env.DB_HOST | default "") | quote }}
+            - name: DB_PORT
+              value: {{ .Values.externalDatabase.port | default (.Values.services.api.env.DB_PORT | default "5432") | quote }}
+            - name: DB_TLS_ENABLED
+              value: {{ .Values.externalDatabase.enableTLS | default (.Values.services.api.env.DB_TLS_ENABLED | default "false") | quote }}
+            - name: DB_TLS_REJECT_UNAUTHORIZED
+              value: {{ if .Values.services.api.env.DB_TLS_REJECT_UNAUTHORIZED }}{{ .Values.services.api.env.DB_TLS_REJECT_UNAUTHORIZED | quote }}{{ else }}{{ if .Values.externalDatabase.allowSelfSignedCert }}"false"{{ else }}"true"{{ end }}{{ end }}
+            - name: DB_DATABASE
+              value: {{ .Values.externalDatabase.name | default (.Values.services.api.env.DB_DATABASE | default "") | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.externalDatabase.user | default (.Values.services.api.env.DB_USERNAME | default "") | quote }}
+            {{- if .Values.externalDatabase.existingSecret }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret | quote }}
+                  key: database-password
+            {{- else }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "daytona.secretName" . }}-db
+                  key: database-password
+            {{- end }}
+            {{- end }}
       containers:
         - name: api
           securityContext:
@@ -52,7 +208,7 @@ spec:
               protocol: TCP
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "default-runner" | quote }}
+              value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "" | quote }}
             # Application configuration
             - name: ENVIRONMENT
               value: {{ .Values.services.api.env.ENVIRONMENT | default "production" | quote }}
@@ -249,13 +405,14 @@ spec:
             # Dex is enabled - use Dex configuration
             {{- $dexHostname := .Values.dex.ingress.hostname | default (printf "dex.%s" .Values.baseDomain) -}}
             {{- $templatedDexHostname := tpl $dexHostname $ -}}
+            {{- $internalDexIssuerUrl := printf "http://%s-dex:%s/dex" (include "daytona.fullname" .) (.Values.dex.service.port | default 5556 | toString) -}}
             {{- $dexIssuerUrl := "" -}}
-            {{- if .Values.dex.config.issuer -}}
+            {{- if .Values.services.api.env.OIDC_ISSUER_BASE_URL }}
+              {{- $dexIssuerUrl = .Values.services.api.env.OIDC_ISSUER_BASE_URL -}}
+            {{- else if .Values.dex.config.issuer -}}
               {{- $dexIssuerUrl = .Values.dex.config.issuer -}}
-            {{- else if and .Values.dex.enabled .Values.dex.ingress.enabled -}}
-              {{- $dexIssuerUrl = printf "https://%s/dex" $templatedDexHostname -}}
             {{- else -}}
-              {{- $dexIssuerUrl = printf "http://%s-dex:%s/dex" (include "daytona.fullname" .) (.Values.dex.service.port | default 5556 | toString) -}}
+              {{- $dexIssuerUrl = $internalDexIssuerUrl -}}
             {{- end }}
             {{- $dexPublicUrl := "" -}}
             {{- if and .Values.dex.enabled .Values.dex.ingress.enabled -}}
@@ -349,6 +506,28 @@ spec:
               value: {{ .Values.services.api.env.ENCRYPTION_KEY | default "" | quote }}
             - name: ENCRYPTION_SALT
               value: {{ .Values.services.api.env.ENCRYPTION_SALT | default "" | quote }}
+            # Required at first boot: api crashes at bootstrap if unset on a
+            # fresh database (getOrThrow('admin.apiKey') has no code default).
+            - name: ADMIN_API_KEY
+              value: {{ .Values.services.api.env.ADMIN_API_KEY | default "secret_admin_api_key" | quote }}
+            # Quotas baked into the Daytona Admin user's personal organization
+            # at FIRST BOOT ONLY (later env changes do not update the stored
+            # org). The in-code defaults are all 0, which makes every sandbox
+            # creation fail with "CPU request ... exceeds maximum".
+            - name: ADMIN_TOTAL_CPU_QUOTA
+              value: {{ .Values.services.api.env.ADMIN_TOTAL_CPU_QUOTA | default "32" | quote }}
+            - name: ADMIN_TOTAL_MEMORY_QUOTA
+              value: {{ .Values.services.api.env.ADMIN_TOTAL_MEMORY_QUOTA | default "128" | quote }}
+            - name: ADMIN_TOTAL_DISK_QUOTA
+              value: {{ .Values.services.api.env.ADMIN_TOTAL_DISK_QUOTA | default "300" | quote }}
+            - name: ADMIN_MAX_CPU_PER_SANDBOX
+              value: {{ .Values.services.api.env.ADMIN_MAX_CPU_PER_SANDBOX | default "4" | quote }}
+            - name: ADMIN_MAX_MEMORY_PER_SANDBOX
+              value: {{ .Values.services.api.env.ADMIN_MAX_MEMORY_PER_SANDBOX | default "8" | quote }}
+            - name: ADMIN_MAX_DISK_PER_SANDBOX
+              value: {{ .Values.services.api.env.ADMIN_MAX_DISK_PER_SANDBOX | default "30" | quote }}
+            - name: ADMIN_VOLUME_QUOTA
+              value: {{ .Values.services.api.env.ADMIN_VOLUME_QUOTA | default "100" | quote }}
             {{- if .Values.services.api.env.RUNNER_MANAGER_API_KEY }}
             - name: RUNNER_MANAGER_API_KEY
               value: {{ .Values.services.api.env.RUNNER_MANAGER_API_KEY | quote }}

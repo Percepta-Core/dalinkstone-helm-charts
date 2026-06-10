@@ -69,6 +69,18 @@ spec:
             # Pod Wait Timeout
             - name: POD_WAIT_TIMEOUT
               value: {{ .Values.services.runnermanager.env.POD_WAIT_TIMEOUT | default "600" | quote }}
+            # Autoscaler floor: the manager only creates runner instances
+            # (placeholder pod + api registration + config push to the runner
+            # DaemonSet pod) when active DB runners < MIN_RUNNERS. The binary
+            # default is 0, which on a fresh install means NO runner is ever
+            # registered/configured, the runner never heartbeats, and sandbox
+            # creation fails with "No available runners".
+            - name: MIN_RUNNERS
+              value: {{ .Values.services.runnermanager.env.MIN_RUNNERS | default "1" | quote }}
+            {{- if .Values.services.runnermanager.env.MAX_RUNNERS }}
+            - name: MAX_RUNNERS
+              value: {{ .Values.services.runnermanager.env.MAX_RUNNERS | quote }}
+            {{- end }}
             # Kubeconfig Path (Optional - for local development)
             {{- if .Values.services.runnermanager.env.KUBECONFIG_PATH }}
             - name: KUBECONFIG_PATH
@@ -76,7 +88,7 @@ spec:
             {{- end }}
             # API Key
             - name: API_KEY
-              value: {{ .Values.services.runnermanager.env.API_KEY | default "secret_api_key" | quote }}
+              value: {{ .Values.services.runnermanager.env.API_KEY | default .Values.services.runner.env.API_TOKEN | default "secret_api_token" | quote }}
             # Server URL - Auto-generated as "https://{{.Values.baseDomain}}/api" if not set or empty
             - name: SERVER_URL
               value: {{ if .Values.services.runnermanager.env.SERVER_URL }}{{ .Values.services.runnermanager.env.SERVER_URL | quote }}{{ else }}{{ printf "https://%s/api" .Values.baseDomain | quote }}{{ end }}

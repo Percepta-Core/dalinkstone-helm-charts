@@ -339,6 +339,81 @@ EOF
   omc::log INFO "ClusterIssuer letsencrypt-prod applied (DNS-01 via Cloudflare; email=${email})"
 }
 
+# omc::certs_preissue BASE_DOMAIN [ns=daytona] [issuer=letsencrypt-prod]
+# Pre-creates the three Certificates the daytona chart's ingresses reference
+# (api+harbor -> <base>-tls, dex -> dex.<base>-tls, proxy -> proxy.<base>-tls)
+# so ACME issuance starts BEFORE helm install instead of when ingress-shim
+# first sees the ingresses. Without this the api pushes the default snapshot
+# to harbor.<base> seconds after boot while DNS-01 issuance is still in
+# flight; ingress-nginx serves its built-in fake cert (SAN ingress.local) and
+# the snapshot lands in terminal state=error ("x509: certificate is valid for
+# ingress.local, not harbor.<base>"). DNS-01 needs no A/CNAME records, only
+# the Cloudflare API, so this can run as soon as the ClusterIssuer exists.
+# dnsNames mirror the chart's ingress tls blocks exactly, so ingress-shim
+# later finds spec-identical Certificates and leaves them alone.
+omc::certs_preissue() {
+  local base="$1" ns="${2:-daytona}" issuer="${3:-letsencrypt-prod}"
+  if [[ -z "$base" ]]; then
+    omc::die "certs_preissue: base domain is required"
+  fi
+  kubectl apply -f - <<EOF >/dev/null
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ${base}-tls
+  namespace: ${ns}
+spec:
+  secretName: ${base}-tls
+  issuerRef:
+    name: ${issuer}
+    kind: ClusterIssuer
+  dnsNames:
+    - "${base}"
+    - "*.${base}"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dex.${base}-tls
+  namespace: ${ns}
+spec:
+  secretName: dex.${base}-tls
+  issuerRef:
+    name: ${issuer}
+    kind: ClusterIssuer
+  dnsNames:
+    - "dex.${base}"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: proxy.${base}-tls
+  namespace: ${ns}
+spec:
+  secretName: proxy.${base}-tls
+  issuerRef:
+    name: ${issuer}
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.${base}"
+    - "${base}"
+EOF
+  omc::log INFO "Certificates pre-issued in ns ${ns}: ${base}-tls, dex.${base}-tls, proxy.${base}-tls (issuer=${issuer})"
+}
+
+# omc::certs_wait_ready [ns=daytona] [timeout=20m]
+# Blocks until every cert-manager Certificate in the namespace is Ready.
+# ACME DNS-01 (order -> TXT record -> propagation self-check -> issuance)
+# routinely takes 5-20 min; installing the chart before this returns re-opens
+# the fake-cert window that certs_preissue exists to close.
+omc::certs_wait_ready() {
+  local ns="${1:-daytona}" timeout="${2:-20m}"
+  omc::log INFO "Waiting up to ${timeout} for Certificates in ns ${ns} to be Ready..."
+  kubectl wait --for=condition=Ready certificate --all -n "$ns" --timeout="$timeout" >/dev/null \
+    || omc::die "Certificates not Ready after ${timeout}; debug: kubectl describe certificate -n ${ns} && kubectl logs -n cert-manager deploy/cert-manager"
+  omc::log INFO "All Certificates Ready in ns ${ns}"
+}
+
 # omc::az_register_providers PROVIDER1 PROVIDER2 ...
 # Checks each Azure resource provider's registrationState; for any not "Registered",
 # prompts to register (with --wait). NEW Azure subscriptions ship with no providers
@@ -384,6 +459,7 @@ omc::az_register_providers() {
 
 # omc::verify_node_ubuntu [required_version=24.04] [label_selector=daytona-sandbox-c=true] [timeout=300]
 # Fails-fast if any node matching the selector is NOT running the required Ubuntu version.
+# Pass an empty selector ("") to verify every node in the cluster.
 # The Daytona helm chart's docker-installer downloads Ubuntu 24.04 (noble) .deb
 # packages directly — running on Ubuntu 22.04 (jammy) or any other distro WILL
 # fail when the runner attempts to bootstrap Docker on the node.
@@ -392,15 +468,21 @@ omc::az_register_providers() {
 # NO EXCEPTIONS — operator override is intentionally not provided.
 omc::verify_node_ubuntu() {
   local required_version="${1:-24.04}"
-  local label_selector="${2:-daytona-sandbox-c=true}"
+  local label_selector="${2-daytona-sandbox-c=true}"
   local timeout="${3:-300}"
+  local selector_desc="${label_selector:-<all nodes>}"
 
-  omc::log INFO "Verifying nodes are running Ubuntu $required_version (selector: $label_selector)..."
+  omc::log INFO "Verifying nodes are running Ubuntu $required_version (selector: $selector_desc)..."
 
   local elapsed=0 node_count=0
   while [[ $elapsed -lt $timeout ]]; do
-    node_count="$(kubectl get nodes -l "$label_selector" \
-      -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w | tr -d ' ')"
+    if [[ -n "$label_selector" ]]; then
+      node_count="$(kubectl get nodes -l "$label_selector" \
+        -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w | tr -d ' ')"
+    else
+      node_count="$(kubectl get nodes \
+        -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w | tr -d ' ')"
+    fi
     if [[ "$node_count" -gt 0 ]]; then
       break
     fi
@@ -409,12 +491,17 @@ omc::verify_node_ubuntu() {
   done
 
   if [[ "$node_count" -eq 0 ]]; then
-    omc::die "verify_node_ubuntu: no nodes match selector '$label_selector' after ${timeout}s"
+    omc::die "verify_node_ubuntu: no nodes match selector '$selector_desc' after ${timeout}s"
   fi
 
   local nodes_os
-  nodes_os="$(kubectl get nodes -l "$label_selector" \
-    -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}')"
+  if [[ -n "$label_selector" ]]; then
+    nodes_os="$(kubectl get nodes -l "$label_selector" \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}')"
+  else
+    nodes_os="$(kubectl get nodes \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}')"
+  fi
 
   local bad_nodes="" good_count=0
   while IFS=$'\t' read -r name osimage; do
