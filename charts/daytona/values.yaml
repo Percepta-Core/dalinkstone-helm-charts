@@ -667,12 +667,15 @@ services:
     # Extra volumes for the pod (e.g. Secrets Store CSI Driver)
     extraVolumes: []
 
-  # Reaps runner rows whose heartbeat has been dead for staleAfterMinutes.
-  # The runner-manager autoscaler counts initializing/unresponsive rows as
-  # "active" and only scales up while active < MIN_RUNNERS, and nothing in
-  # v0.184.0-k8s-oss.1 ever retires a row whose node/pod is gone — so a
-  # recycled sandbox node would otherwise NEVER get a replacement runner
-  # registered. Healthy runners heartbeat every ~10s and are never eligible.
+  # Reaps runner rows (and their sandbox rows) ONLY for nodes that no longer
+  # exist. The runner-manager autoscaler counts initializing/unresponsive
+  # rows as "active" and only scales up while active < MIN_RUNNERS, and
+  # nothing in v0.184.0-k8s-oss.1 ever retires a row whose node/pod is gone —
+  # so a recycled sandbox node would otherwise NEVER get a replacement runner
+  # registered. Two gates must BOTH pass before a row is reaped: heartbeat
+  # dead >= staleAfterMinutes in the DB, AND the backing pod absent from the
+  # cluster. Runners on live nodes (even mid-restart or mid-install) and
+  # their sandboxes are never touched. Healthy runners heartbeat every ~10s.
   runnerReaper:
     enabled: true
     schedule: "*/2 * * * *"
@@ -681,6 +684,14 @@ services:
       registry: docker.io
       repository: library/postgres
       tag: "17-alpine"
+      pullPolicy: IfNotPresent
+    # Used by the pod-census init container (the "is the node really gone"
+    # gate). Needs only `kubectl get pods`; any kubectl within version skew
+    # of the cluster works.
+    kubectlImage:
+      registry: docker.io
+      repository: alpine/kubectl
+      tag: "1.33.4"
       pullPolicy: IfNotPresent
     resources:
       requests:

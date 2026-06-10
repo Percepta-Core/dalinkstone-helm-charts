@@ -174,7 +174,7 @@ metadata:
   name: release-name-daytona-api
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -189,7 +189,7 @@ metadata:
   name: release-name-daytona-proxy
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -204,12 +204,26 @@ metadata:
   name: release-name-daytona-runnermanager
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: runnermanager
+---
+# Source: daytona/templates/runner-reaper-cronjob.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: release-name-daytona-runner-reaper
+  namespace: default
+  labels:
+    helm.sh/chart: daytona-0.0.24
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.183.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: runner-reaper
 ---
 # Source: daytona/templates/runner-serviceaccount.yaml
 apiVersion: v1
@@ -218,7 +232,7 @@ metadata:
   name: release-name-daytona-runner
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -232,7 +246,7 @@ metadata:
   name: release-name-daytona-ssh-gateway
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -259,13 +273,13 @@ metadata:
 type: Opaque
 data:
   secretKey: "bm90LWEtc2VjdXJlLWtleQ=="
-  secret: "SDRtZUwwY2lVMGZ2R05GOQ=="
-  tls.key: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBcGIraDVnWWw0SnZvaktJT1kxb2sxWkdnNS9PRCs4S0k1dGkrL29yb0FlRUc2UmROClRlQktFSE15T1hHY1IrY01UaU9WYlduY3FLK1djdHI3bTJxa1FPV2dobnNKLzNzWUVjVmxzeW0yam1tdkJ1cXIKWEFTY1ltbG1FRXZXZTRjS3h3VFBhd2dIMERNUkRyQ05heEVuU0dITjlubzE4YjlrTkpaME85V2xMd09sU2RxRwpkUmcwRmVLeEZLamNmTThwSlUycTc4c3d1VVVPZkViV0JwcnhLT1kvcFI5M3NLb2ZLM0hRSlQyczhIMVlMcFdyCldyNmtTZmxUaXhzTjNNMEtQcU5FMkJJdU4za2lSZUVDV0Eyb0pLTWpaL3VkTXByUzhlbS93Qll2aThvR1RpMXUKeUFUNUNXWm9wZXJlcnl0VUdDNzhvcjRjRUp3YjhzUFFUYURUK3dJREFRQUJBb0lCQUIrNjJjRnhOOXNSdmFqKwpkUWFzQVJVcGRjWXhwZmlTT3ljR0l6b1RXV3JTcTBJQUJmcDhqM0VxdkZpbTJTWWlvd1pxWlhhMnAxbGJrOCtWCkFFbTJWbzlkNWljWWNzZUh4d25QNGpJME1CQi9SdFJxSkRmUFlpaXN5SzhoOVlOY1RNSGd0OXhqZ3l0bU8wTzIKcEx2MFlyTEdsbWt5NkJUSmNPTm9VZ1FLV0Q3eGdyS3hTTmsxbktFZlZIUk9LV09QbHZQdjR5S1pCNSt3OG1zRwpsbHE1bXQrd0lSYmxLUG1ycUVFejdJQ0s2MlVMWEFBbUQ3b3dUUHVoYnBKMU13M0ZTYlZ6YmVVVWEzaWdvYTVaCnRKa3NjdXFsa1BxRkdNdmVvN0kxc2Zucmh5bEhuRjVTQTB4cWE4T1NYYXpiYyttamhVTjd0dTg4dkNNUXUycDEKaVEvbTFiRUNnWUVBd1dyNkNmNVAvNFNTaDhQRVJTUm13THd1WVNLeXNlZnZzV2NqQ3NiQzJxNGdUNS96OEZhSAo1YlRHUHBIbXd5SDZMbjhzcmQ4RU00TmJFMExEMzFKTHYvbVlQQ0NqbjFSNVcycmJ1SmRkWHl1RkpXR21PcEY3CmoraDNhMEVJLzdqYzRBSFpaWndNa2lFcW1VaElENlpxNmoxZ3BFTzlOUEFUYzVma0t2NFJNSFVDZ1lFQTIyREcKWUpTdnJwTHlSRUlHalJ1VXpHZURkRnNjU1VLeEJTM0V1RDc4NkExc1dCcnFwTXpCYk5OWWZHSy9Md1ZZYWVPYQp4OXFtdnd6c3prMlJvYVZQWSt5TFVBcXRiMUhCUC9XRXpLY1VXVkRFVE1reTZqaC9TOVdoYTdtVk9ZVXErOUVJCnRXdlg2ZWdtUEt1WnU3VjRhQlJUOHJIRnlEejE1VXp3SkliSFpLOENnWUJjLzJtLzJsWnVuaml5TEkrM1N2eFkKMldKWGRBNkZlZWFHM3ZjN1hEd2VWekRUK0MyYk5vL2JBNk42UEQ2L1Bod0R0VVF2U1piRWlma0Zkc21sRy9XdQpGWDE4RTVsNHAyNCtaVS9HSG9sWGxCNU56ZmpXR2xOVjYwbFgrWW94SXBxWTNtcS83MXNmKy9CMmlRbVU5TWhkClhpdVViN21PdFl3MHZTaUkvMllXYlFLQmdRQzZuUjhEWjFmdTAvZWNVdUlKeE8yVjEzUStWWWJCVnljSWRiK0MKejZvSnArbURKUnAzSitwZUxZWjNBUFVMQmF3SkgyRTZJdWgzV29KU21DK0s1dm1hMGN4TVFWajVlZjArOEJhUQpsSXc5MGZPNk1lakt6MWFSNXQ5U3FPS2t0SUExQjhNMXVOQkpuSDV5VzdNQnQwUCtuVlF2L2tOMXEwMnRTZjU1CncrRDM1d0tCZ1FDNHBaamMzeXNWbHY5RUpHNDRRdXlxd0lRKzcwYzFFQzQwUDg4emVVb2VCeGZwN2dLcDhGNkkKRXh3bURqSTk0NUp3Slcxd0xqc0x1Mjh0VUpINURmaFAzYml0Zk5vOHJYYmx3aUFsSFJVSXNwS3lVeWhzd3JWcApUWWVIaERGOUdleTBQSmQrYlFtVVBHaldoZGk1cmZrOGZtY0tDUFZSWFowWEcrUVNaOHZCVmc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo="
-  tls.crt: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURJRENDQWdpZ0F3SUJBZ0lSQUxRVlFyZHpEd01sVk9HdXZvRU9MUGN3RFFZSktvWklodmNOQVFFTEJRQXcKR2pFWU1CWUdBMVVFQXhNUGFHRnlZbTl5TFhSdmEyVnVMV05oTUI0WERUSTJNRFl4TURBeE5UVXhNMW9YRFRJMwpNRFl4TURBeE5UVXhNMW93R2pFWU1CWUdBMVVFQXhNUGFHRnlZbTl5TFhSdmEyVnVMV05oTUlJQklqQU5CZ2txCmhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBcGIraDVnWWw0SnZvaktJT1kxb2sxWkdnNS9PRCs4S0kKNXRpKy9vcm9BZUVHNlJkTlRlQktFSE15T1hHY1IrY01UaU9WYlduY3FLK1djdHI3bTJxa1FPV2dobnNKLzNzWQpFY1Zsc3ltMmptbXZCdXFyWEFTY1ltbG1FRXZXZTRjS3h3VFBhd2dIMERNUkRyQ05heEVuU0dITjlubzE4YjlrCk5KWjBPOVdsTHdPbFNkcUdkUmcwRmVLeEZLamNmTThwSlUycTc4c3d1VVVPZkViV0JwcnhLT1kvcFI5M3NLb2YKSzNIUUpUMnM4SDFZTHBXcldyNmtTZmxUaXhzTjNNMEtQcU5FMkJJdU4za2lSZUVDV0Eyb0pLTWpaL3VkTXByUwo4ZW0vd0JZdmk4b0dUaTF1eUFUNUNXWm9wZXJlcnl0VUdDNzhvcjRjRUp3YjhzUFFUYURUK3dJREFRQUJvMkV3Clh6QU9CZ05WSFE4QkFmOEVCQU1DQXFRd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUMKTUE4R0ExVWRFd0VCL3dRRk1BTUJBZjh3SFFZRFZSME9CQllFRk5BUDM5b2FVSE5FVnREaGM0bjNtcVRCMHpEdApNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUFoOHNnSTZUNnNYdmJhaUtiaWxyRlRsUTEzQS8vaTVrenNnREF0CmRtTjRoVWtlNllmdUE1Ymlkc29iSk1tNFA5SjZkT1U2em9KT3pnQ2Y1ZEFYU3RHc3o1anRuMitpM29pOVFPaWQKaXZ4NTNtQ01DK3ZieEVnRTZxSlUzdGhldlhVdEo4YWh0ZlFKbUtYRzM1WDdDTmlpT1BwNG10ZWp4Y3dLYWxlbgp0WGs5MG1xSmR2SHZmcG5vSDJLZmNBaElEemo0aWwyZGJteFoxKytoQUF2NytIVWdjZ21rUEVrZTc4YlFwbDR2CkJhWjJMSXNQSGRVS0N1REQ1SEQ2TnhSMU1ibFdPZVFsdU94SFZONDlUNkNkK1BqK3FFRE1IZEFMaEJWclpMK3MKYStGR3VSanJnRVZBZldBTjhMZGZ0djlla1p6cnNVbTJhS0FGUmtVaUdDbHNxNVZYCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+  secret: "amVsTzV5b016bHoxbXNpeA=="
+  tls.key: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb2dJQkFBS0NBUUVBcWlxWEd6ZzdZYURHcUZ3V3Job3FUQnBYeVZMRDlPQVRlU0YweHdmdXNjenBGZEdpClhLT1JqdHBUSHU0ZnBYbzhIbk5GYzFObXJrMWlnMHM0ZC96NTlQYU5hK2NoN3VlTmgwVGlZSVpWdXREVUtMMVMKaWpsamhjN2lTMzI0eVhaL3huZURlc3EwcW14amQyZ3ErZ2lOVUVLWW9Yd3pBcFpXQ2JvRTBJdGhQRlQyZWFtTwpKMDVSM2hCaEQ5QWdIU2tXVFdUWitzeGtSYmZiODRWTnVQL1c3anpPUTNoQktkTDlJb2Ribm1IeGh2WEJHYlFQCnYvV0dwdmVIRjlUZDhwWTRpTTRtVmVtdXp2blFoWnl5a1dwRHVGT2NvWG5XcmJNOWJzR1RJNnVGcGI1cHpWaW4KMG02VFNCRmZrclh1QnhDRUV5SGlrcjluRlZXNUtDSmc1WHlhWHdJREFRQUJBb0lCQUJGdXo1QXdVSlVOM1l3OQo4dXpmTFZvaWtML0ZST0gvV3I5Y0dCU1QwWFpSb2Nka2RKZTlBaHA2YjIySnc2QTJSNVp2Qkx4dDNPVWFkRzh5Cjg1UUhUS3cxM2dNaDZLNEs5c3JXMmNJOXdPYWtvamVTUGJSL2NKeXl0eWc0dHdlY3BqWjA0L2xlYnVmT3R0bnkKeUFSWmYvQ3JBZXY1UjFpS2drSDQxcWx1dmdWcUhBTHBZY2UrWi8xbTJlelNody9IazQ4SmZDVVQ5UzQzOHIwTApoZndaRjI2ajF2N2RDVEdIeDVObkZZbHUzVEpwME9vYnNSOENzSExZWUVkTXkrdGZ1anRFbUFGQWpBN0lCMUlYCk9jaTNubDgwRlpYNEFCc0tpWkxpUGNTMWppWUZqVFFRVW1RTGxmWUUwb2thM0J3bEJMOHo1T3QxWjIxYXhjREgKY2xtWHN0RUNnWUVBdzRaTHZveCtVTkkyWGRpdVlpSnlzRmVWTUxxTGdnQXVscyswM1JZODJpN0lteVh2NVRxMQovYWlmS0JtWjNVRjI3WThIbWtXKzVrOXVhL2ZKMDFqc1llSGpWcElmQ2tEVHFETHdRR2d3R0JHaTdYTzUwcHMyCjhPd01yMWw0T0J0b0ZlbnpvZ1RWTk92NTVDOGt4czdvOGtHanBmS2ZKdXlSWnl6Tk9PVnF1SE1DZ1lFQTNzeHIKNUhUbnA0YXNEZWRzb2VlTUdab2J6R0o5V05qVElNMk9TTmZmY3h5RVlXQ2psTTBrSDhQR3c2Q3RTZFVndjdlawpvamJpWVpsUXRVR09UK21zRUtXVzRPM0orNWVHaTJEV1BZdDRsYklKQ2JJVER3T0RyQ2t2cENkcUJob3NIQ2h0ClBjTk9HZVVGc1U1M2FHSFRNWkpUbW9aREVTZXhENVBoV2txU2wyVUNnWUJWMXN2Q0tDUDhqNDFXdmg0dzd6YXkKdklDL0YrYlBlQXo4SU13aWsvUzdSUGJGUm01L2tMcjlWZDRwMkxONE01bG15ZmhvZmw1RTluSmY3RFVyR0VzTwozZ0RVck9uN3NtSTU0Y01nUTUxNXM2UjM0dXFkejQ3YlRvWnpKVEJtVVlIc3ZQMDlFQ29hUmM4N29vYmUwVS9yCnEyMlJHV2ROeTJZNmlheS9ZZGpzaVFLQmdDTUVCY0QyRHFKcHJBalRZbU5mdk1rWlMxMG43WU5WTUhsclZQMWwKMEJ5TFV0THJHVXA5b3p2S3pTWlp6bUpZT0xsbzUxc0hQVFVSbjNtZFAveVhRUStzdHJYTEtYOTlKUXdxd0FFVQpObk53YzdNdVpZaHFpUHM1emQ4Q3dzc0t1ZndDN29oU2RhZmtNcXpYSkRVbmlzV3p0YWdIaWVyY1RodWdwajVHCmtodHhBb0dBVkFMSVl2cXBNdS9wYjdOMUw3YllmeEFuOTI0UmlnTEg1TTR0ZFpodzc3RmFWM2pNM3VFa05QVlgKQ0FIRWx3U0pXMmFJc0Z5V3VmOVovR01HRzgrOXZhTkUvTVRiNGFSYnBldk92RitGOHlaN0tIM3BXVGVMNENzWgp5RUdGcWVZQWRMU0pJdkdSL3ZNMU5xSTQxcUxmRk03eXpTYkE1RWpJQ3M1OFFSMDFMM3M9Ci0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg=="
+  tls.crt: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURIekNDQWdlZ0F3SUJBZ0lRTlUwbzNRdS9TS2hucmN2alp0bi9BVEFOQmdrcWhraUc5dzBCQVFzRkFEQWEKTVJnd0ZnWURWUVFERXc5b1lYSmliM0l0ZEc5clpXNHRZMkV3SGhjTk1qWXdOakV3TVRrek56UTFXaGNOTWpjdwpOakV3TVRrek56UTFXakFhTVJnd0ZnWURWUVFERXc5b1lYSmliM0l0ZEc5clpXNHRZMkV3Z2dFaU1BMEdDU3FHClNJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUNxS3BjYk9EdGhvTWFvWEJhdUdpcE1HbGZKVXNQMDRCTjUKSVhUSEIrNnh6T2tWMGFKY281R08ybE1lN2grbGVqd2VjMFZ6VTJhdVRXS0RTemgzL1BuMDlvMXI1eUh1NTQySApST0pnaGxXNjBOUW92VktLT1dPRnp1SkxmYmpKZG4vR2Q0TjZ5clNxYkdOM2FDcjZDSTFRUXBpaGZETUNsbFlKCnVnVFFpMkU4VlBaNXFZNG5UbEhlRUdFUDBDQWRLUlpOWk5uNnpHUkZ0OXZ6aFUyNC85YnVQTTVEZUVFcDB2MGkKaDF1ZVlmR0c5Y0VadEErLzlZYW05NGNYMU4zeWxqaUl6aVpWNmE3TytkQ0ZuTEtSYWtPNFU1eWhlZGF0c3oxdQp3Wk1qcTRXbHZtbk5XS2ZTYnBOSUVWK1N0ZTRIRUlRVEllS1N2MmNWVmJrb0ltRGxmSnBmQWdNQkFBR2pZVEJmCk1BNEdBMVVkRHdFQi93UUVBd0lDcERBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXcKRHdZRFZSMFRBUUgvQkFVd0F3RUIvekFkQmdOVkhRNEVGZ1FVaTNTU3dDNjU1SUxhQ2srVFVId3lvcWsrQmxJdwpEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQmlKZVVvQjVJRmlLdmRyNnl1UUlSclFNZWl0MXQ0RVZSRkJaQklSCnpmdy9QVk95N24wNkdtNEdsSEZOZnE0OW5jNW84N2JocERSYnBUS2JSTnpya09ZWjhZdysvQTl4ZEVuQ3JCZ3cKSkZ4Tjc0SFhrNTNQWExWeVd6UUJldWdDM2dnV2E1anBmWVR5WkVRaUlNY29nOUlvQURJaG8zbW5HK3VDWXAzbwpUbmIwMW90SFFHSVlibXU1VGZvaGJJcjVxRjJyZmdIUnFVTVFoZVA3cmIzUFZiaTYvR25vMkg4OFBBbkVlaFVOCm1COU9PUm9JRE10M1JxTUJhQjFFOHZLRTJiSmdLbTM0UEZGN3lldGJGQ3NhaVRMZktJdkR2Sm9IYnprWHB3YXUKcVJGTzQxejNJSW1VQStCU0FHWGdPcXF6UnpvMElheTFtOUtjYXRuT2JGVE9SMEU9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
   HARBOR_ADMIN_PASSWORD: "SGFyYm9yMTIzNDU="
   POSTGRESQL_PASSWORD: "Y2hhbmdlaXQ="
   REGISTRY_CREDENTIAL_PASSWORD: "aGFyYm9yX3JlZ2lzdHJ5X3Bhc3N3b3Jk"
-  CSRF_KEY: "WXFNUUxmWjU3T2ZSekJKblJPdUMzMGdGeWtBdTFZY1U="
+  CSRF_KEY: "bGxyeXhYSzFYRnNtTWJaVk4yWFJvS3B3cFVldWVJYTA="
 
 ---
 # Source: daytona/charts/harbor/templates/database/database-secret.yaml
@@ -306,7 +320,7 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
-  JOBSERVICE_SECRET: "T3JHZWVPR0JsSHNYNzlIaQ=="
+  JOBSERVICE_SECRET: "QzhKcjFrbVF5TjlhRUZqTw=="
   REGISTRY_CREDENTIAL_PASSWORD: "aGFyYm9yX3JlZ2lzdHJ5X3Bhc3N3b3Jk"
 
 ---
@@ -328,7 +342,7 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
-  REGISTRY_HTTP_SECRET: "TG9keWRLMUtlWnNSMjd5Sw=="
+  REGISTRY_HTTP_SECRET: "OUFQQkFEWlcycHM4dU5mSQ=="
   REGISTRY_REDIS_PASSWORD: ""
 ---
 # Source: daytona/charts/harbor/templates/registry/registry-secret.yaml
@@ -349,7 +363,7 @@ metadata:
     app.kubernetes.io/version: "2.14.0"
 type: Opaque
 data:
-  REGISTRY_HTPASSWD: "aGFyYm9yX3JlZ2lzdHJ5X3VzZXI6JDJhJDEwJFNhc3YvaEppZkZVUDF4ZVpsdUxlWE92R0RCYWovZExrUlhZOWdYNkFGSm9jYXpvUklNekoy"
+  REGISTRY_HTPASSWD: "aGFyYm9yX3JlZ2lzdHJ5X3VzZXI6JDJhJDEwJHp2cG5tYnM1cG5rVVZWY1ozYUg3R2VsNlk5UFdTL3F6Y3BxUHUyRVpjcjdkS0lsYXVoNnRL"
 
 ---
 # Source: daytona/charts/harbor/templates/registry/registryctl-secret.yaml
@@ -398,7 +412,7 @@ metadata:
   name: release-name-daytona-secret-ssh
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -935,7 +949,7 @@ metadata:
   name: release-name-daytona-dex-config
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1041,7 +1055,7 @@ metadata:
   name: release-name-daytona-dex
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1061,7 +1075,7 @@ kind: ClusterRole
 metadata:
   name: release-name-daytona-runner-manager-nodes
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1078,7 +1092,7 @@ kind: ClusterRoleBinding
 metadata:
   name: release-name-daytona-runner-manager-nodes
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1100,7 +1114,7 @@ metadata:
   name: release-name-daytona-runnermanager
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1114,6 +1128,24 @@ rules:
   resources: ["configmaps"]
   verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
 ---
+# Source: daytona/templates/runner-reaper-cronjob.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: release-name-daytona-runner-reaper
+  namespace: default
+  labels:
+    helm.sh/chart: daytona-0.0.24
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.183.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: runner-reaper
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
 # Source: daytona/templates/runner-manager-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -1121,7 +1153,7 @@ metadata:
   name: release-name-daytona-runnermanager
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1135,6 +1167,28 @@ subjects:
 - kind: ServiceAccount
   name: release-name-daytona-runnermanager
   namespace: default
+---
+# Source: daytona/templates/runner-reaper-cronjob.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: release-name-daytona-runner-reaper
+  namespace: default
+  labels:
+    helm.sh/chart: daytona-0.0.24
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.183.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: runner-reaper
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: release-name-daytona-runner-reaper
+subjects:
+  - kind: ServiceAccount
+    name: release-name-daytona-runner-reaper
+    namespace: default
 ---
 # Source: daytona/charts/harbor/templates/core/core-svc.yaml
 apiVersion: v1
@@ -1438,7 +1492,7 @@ metadata:
   name: release-name-daytona-api
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1464,7 +1518,7 @@ metadata:
   name: release-name-daytona-dex
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1490,7 +1544,7 @@ metadata:
   namespace: default
   name: release-name-daytona-proxy
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1516,7 +1570,7 @@ metadata:
   name: release-name-daytona-runnermanager
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1541,7 +1595,7 @@ metadata:
   name: release-name-daytona-ssh-gateway
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -1567,7 +1621,7 @@ metadata:
   name: release-name-daytona-runner
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -2202,8 +2256,8 @@ spec:
         app.kubernetes.io/component: core
       annotations:
         checksum/configmap: cb4489aca05c214ac39c5d925c2b150c6141126beb7032a80e1c3bb86576b340
-        checksum/secret: cc137ab94af6df835822c13102bb1fd14abc82c989a1a97e71f0a870d05b343c
-        checksum/secret-jobservice: 215507d231f3a4782c56116c957f63b205404a16587cf1610734fc613e767209
+        checksum/secret: 2da2b5168b37047e9ed7e511387bab1775b08e878af99a0cff9612dea51c13d3
+        checksum/secret-jobservice: 7a4071ed1a9d39ba6180d864ffcae2c9aab16950397f27de6d53b49c44695f08
     spec:
       securityContext:
         runAsUser: 10000
@@ -2345,8 +2399,8 @@ spec:
       annotations:
         checksum/configmap: 244ec50e63efe66fc3ec84e285fa0e8c83e019830b4462a17e81bc3b0745982a
         checksum/configmap-env: 1c2af1daccf2ab6f5e6433b5d6de46e5b3610a14ef6337b0c14980f428212ea0
-        checksum/secret: 681c6d068fe29a5f2b54dd620979e3ef8992d8d39fa5ed5ca7b2e7e3144f47ba
-        checksum/secret-core: 5d3d38c4e9811064a826ec6a1a10e5f4236ea8200454bbe8ba527af3473fb1bf
+        checksum/secret: 508b936a3fcb12c101afe966371b23aa9d30137cdfa0213dadeb0705b0b57182
+        checksum/secret-core: 9b6dceab2b8085bb8f7cb606df319ea34ae9435b1ee9e86dfdd3958e29b7ea5f
     spec:
       securityContext:
         runAsUser: 10000
@@ -2540,9 +2594,9 @@ spec:
         app.kubernetes.io/component: registry
       annotations:
         checksum/configmap: b2a013a32036502b320d086fb71abf4702ba64f19e1c14222e31a2824982ad92
-        checksum/secret: 42a764086df41038f93cd6099c383f8f64cace974bad7df0c00c9e554d01ff83
-        checksum/secret-jobservice: 598125fcd61358dfbe17a6e3465915e9cffa325e44ce2b2e797fb98faf583727
-        checksum/secret-core: 420c920daea58e52099b2e624ce8624c63330dc738ba5b941299c49d69b1cf71
+        checksum/secret: 0aa4538b37d22cbf3af97d69e96533abf65a678213a520b07e2c6bec6554267e
+        checksum/secret-jobservice: 2a74a7f4777aff287eb0387339954f3caeade4969219dfb13010653c2f9bcd18
+        checksum/secret-core: 519d64b98a5c5defddf3a631800f2380546f933111d323850e94eaeef4316a24
     spec:
       securityContext:
         runAsUser: 10000
@@ -2673,7 +2727,7 @@ metadata:
   namespace: default
   name: release-name-daytona-api
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -3006,7 +3060,7 @@ metadata:
   namespace: default
   name: release-name-daytona-dex
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -3076,7 +3130,7 @@ metadata:
   namespace: default
   name: release-name-daytona-proxy
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -3170,7 +3224,7 @@ metadata:
   namespace: default
   name: release-name-daytona-runnermanager
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -3284,7 +3338,7 @@ metadata:
   name: release-name-daytona-ssh-gateway
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4130,7 +4184,7 @@ metadata:
   name: release-name-daytona-runner-reaper
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4140,11 +4194,11 @@ spec:
   schedule: "*/2 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
-      backoffLimit: 1
-      activeDeadlineSeconds: 120
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
       template:
         metadata:
           labels:
@@ -4152,7 +4206,41 @@ spec:
             app.kubernetes.io/instance: release-name
             app.kubernetes.io/component: runner-reaper
         spec:
+          serviceAccountName: release-name-daytona-runner-reaper
           restartPolicy: Never
+          volumes:
+            - name: shared
+              emptyDir: {}
+          initContainers:
+            # K8s gate: record which pods are actually alive right now. The
+            # reaper container refuses to delete anything if this census is
+            # missing or empty, so a census failure fails safe (no reaping).
+            - name: pod-census
+              image: "docker.io/alpine/kubectl:1.33.4"
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  kubectl get pods -n "$NAMESPACE" \
+                    --field-selector=status.phase!=Failed,status.phase!=Succeeded \
+                    -o custom-columns=:metadata.name --no-headers > /shared/live-pods.txt
+                  echo "Census: $(wc -l < /shared/live-pods.txt) live pods in $NAMESPACE"
+              env:
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
           containers:
             - name: reaper
               image: "docker.io/library/postgres:17-alpine"
@@ -4160,17 +4248,54 @@ spec:
               command: ["sh", "-c"]
               args:
                 - |
+                  set -e
                   STALE_MIN="${STALE_AFTER_MINUTES:-5}"
-                  echo "Reaping runner rows with no heartbeat for >= ${STALE_MIN} minutes..."
-                  psql -v ON_ERROR_STOP=1 \
-                    -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_DATABASE" <<SQL
-                  DELETE FROM runner
+                  PSQL="psql -v ON_ERROR_STOP=1 -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_DATABASE"
+                  if ! [ -s /shared/live-pods.txt ]; then
+                    echo "ERROR: pod census missing or empty — refusing to reap anything" >&2
+                    exit 1
+                  fi
+                  CANDIDATES=$($PSQL -tA <<SQL
+                  SELECT id::text || '|' || name FROM runner
                   WHERE (state = 'unresponsive'
                          AND "lastChecked" IS NOT NULL
                          AND "lastChecked" < now() - interval '${STALE_MIN} minutes')
                      OR (state IN ('initializing', 'unresponsive')
                          AND "lastChecked" IS NULL
                          AND "updatedAt" < now() - interval '${STALE_MIN} minutes');
+                  SQL
+                  )
+                  if [ -z "$CANDIDATES" ]; then
+                    echo "No runner rows stale >= ${STALE_MIN}m. Nothing to do."
+                    exit 0
+                  fi
+                  REAP_IDS=""
+                  for line in $CANDIDATES; do
+                    id="${line%%|*}"
+                    name="${line#*|}"
+                    case "$id" in *[!0-9a-f-]*|"") echo "SKIP malformed id: $line"; continue;; esac
+                    if grep -qxF "$name" /shared/live-pods.txt; then
+                      echo "SKIP $name: backing pod still exists (node alive or still initializing)"
+                    else
+                      echo "REAP $name: stale in DB and no backing pod — node is gone"
+                      REAP_IDS="${REAP_IDS}${REAP_IDS:+,}'$id'"
+                    fi
+                  done
+                  if [ -z "$REAP_IDS" ]; then
+                    echo "All stale rows still have live pods — nothing reaped."
+                    exit 0
+                  fi
+                  $PSQL <<SQL
+                  BEGIN;
+                  -- These sandboxes lived on the deleted node; the rows are
+                  -- unrecoverable and the API can never reconcile them, so
+                  -- remove them outright. Child rows (sandbox_fork,
+                  -- sandbox_last_activity, ssh_access) follow via ON DELETE
+                  -- CASCADE. ::text on both sides keeps the comparison valid
+                  -- whether "runnerId" is uuid or varchar across versions.
+                  DELETE FROM sandbox WHERE "runnerId"::text IN (${REAP_IDS});
+                  DELETE FROM runner WHERE id::text IN (${REAP_IDS});
+                  COMMIT;
                   SQL
                   echo "Reap complete"
               env:
@@ -4189,6 +4314,9 @@ spec:
                     secretKeyRef:
                       name: release-name-postgresql
                       key: password
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
               resources:
                 limits:
                   cpu: 100m
@@ -4273,7 +4401,7 @@ metadata:
   name: release-name-daytona-api
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4308,7 +4436,7 @@ metadata:
   name: release-name-daytona-dex
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4342,7 +4470,7 @@ metadata:
   name: release-name-daytona-proxy
   namespace: default
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4395,7 +4523,12 @@ spec:
                   number: 4000
   tls:
     - hosts:
-        - "proxy.daytona.example.com"
+        # proxy.<baseDomain> is intentionally NOT listed even though it is a
+        # rule host above: the wildcard entry already matches it for
+        # ingress-nginx cert selection, and Let's Encrypt rejects any order
+        # that pairs an exact name with a wildcard covering it ("redundant
+        # with a wildcard domain in the same request", 400 malformed) — so
+        # listing it means the proxy cert never issues on ANY domain.
         - "*.daytona.example.com"
         # The bare base domain carries the /callback rule above. It MUST also
         # be listed here: with the host present in rules but absent from tls,
@@ -4412,7 +4545,7 @@ metadata:
   namespace: default
   name: release-name-daytona-api-migration-init
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4621,7 +4754,7 @@ metadata:
   namespace: default
   name: release-name-daytona-api-migration-post-deploy
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
@@ -4830,7 +4963,7 @@ metadata:
   namespace: default
   name: release-name-daytona-api-migration-pre-deploy
   labels:
-    helm.sh/chart: daytona-0.0.23
+    helm.sh/chart: daytona-0.0.24
     app.kubernetes.io/name: daytona
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/version: "v0.183.0"
