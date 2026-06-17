@@ -38,7 +38,7 @@ You'll be prompted for:
 | Email for Let's Encrypt | — | |
 | Azure region | `eastus` | |
 | Resource group | `<cluster>-rg` | |
-| Daytona image tag | `v0.184.0-k8s-oss.3-amd64` | Applied to api/proxy/runner/runnermanager/ssh-gateway via values-oss.yaml.tmpl |
+| Daytona image tag |  `v0.184.0-k8s-oss.1-amd64` | Applied to api/proxy/runner/runnermanager/ssh-gateway via values-oss.yaml.tmpl |
 
 **Postgres / Redis / MinIO / Harbor admin passwords are auto-generated** and saved to `scripts/azure-oss-setup/.state/oss-secrets.env` (mode 0600). Back that file up before teardown if you want to restore data — teardown wipes the resource group.
 
@@ -47,7 +47,7 @@ You'll be prompted for:
 1. **Resource group** + **AKS cluster** with `--enable-oidc-issuer --enable-workload-identity --os-sku Ubuntu2404`. ~10-15 min.
 2. **Sandbox node pool** with `daytona-sandbox-c=true` label + `sandbox=true:NoSchedule` taint, also on Ubuntu 24.04.
 3. **kubeconfig** via `az aks get-credentials`.
-4. **Ubuntu 24.04 verifier** runs immediately after node pool join. NO EXCEPTIONS — aborts if anything else.
+4. **Ubuntu 24.04 verifier** runs immediately after node pool join for all AKS nodes, then again for sandbox-labeled nodes. NO EXCEPTIONS — aborts if anything else.
 5. **daytona namespace** created.
 6. **ingress-nginx** + **cert-manager** + Let's Encrypt ClusterIssuer.
 7. **LoadBalancer wait** for the Azure standard LB hostname.
@@ -122,8 +122,8 @@ bash scripts/azure-oss-setup/teardown.sh
 
 ## Hard constraints (NO EXCEPTIONS — same as BYOC azure-setup)
 
-- **Ubuntu 24.04 sandbox nodes** — enforced via `omc::verify_node_ubuntu` post-create.
-- **Daytona components at v0.184.0** (Chart.AppVersion + explicit tag pins in values.yaml; the OSS-flavored runner image is `v0.184.0-k8s-oss.3-amd64`).
+- **Ubuntu 24.04 on every AKS node** — enforced via `omc::verify_node_ubuntu` post-create, with a second sandbox-selector gate.
+- **Daytona components at v0.184.0** (Chart.AppVersion + explicit tag pins in values.yaml; the OSS-flavored images are `v0.184.0-k8s-oss.1-amd64` (the `.3` patch has a runner heartbeat bug)).
 - **Python SDK at `daytona==0.183.*`** (set in `e2e.sh` install hint).
 - **K8s-native install only** — `install.sh` on a VM is intentionally not in the flow.
 

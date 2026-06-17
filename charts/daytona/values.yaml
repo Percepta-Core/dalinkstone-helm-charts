@@ -93,6 +93,28 @@ services:
       ENCRYPTION_KEY: "CHANGE_ME_32_CHARACTER_SECRET_K!"
       ENCRYPTION_SALT: "CHANGE_ME_RANDOM_SALT_VALUE"
 
+      # ADMIN_API_KEY is REQUIRED for a fresh install to boot. On first start
+      # against an empty database the api creates the "Daytona Admin" user and
+      # registers this value as that user's API key
+      # (apps/api/src/app.service.ts initializeAdminUser uses
+      # configService.getOrThrow('admin.apiKey') -> process.env.ADMIN_API_KEY,
+      # which has NO in-code default). If this env var is missing, the api
+      # process throws at bootstrap and the pod CrashLoopBackOffs forever.
+      # Only consumed during first-boot admin creation; rotating it later does
+      # NOT update the stored key. CHANGE THIS for production deployments.
+      ADMIN_API_KEY: "secret_admin_api_key"
+      # Admin personal-organization quotas, applied at FIRST BOOT ONLY (the
+      # org row is created once; later env changes don't update it). The
+      # upstream code defaults are all 0 — with 0, EVERY sandbox create fails
+      # with "CPU request ... exceeds maximum". Units: CPU cores / GiB.
+      ADMIN_TOTAL_CPU_QUOTA: "32"
+      ADMIN_TOTAL_MEMORY_QUOTA: "128"
+      ADMIN_TOTAL_DISK_QUOTA: "300"
+      ADMIN_MAX_CPU_PER_SANDBOX: "4"
+      ADMIN_MAX_MEMORY_PER_SANDBOX: "8"
+      ADMIN_MAX_DISK_PER_SANDBOX: "30"
+      ADMIN_VOLUME_QUOTA: "100"
+
       # Workspace configuration
       # Default sandbox snapshot. Chart ships with the SLIM variant (502 MB) by
       # default for fast/reliable first-install experience — SDK code execution
@@ -113,14 +135,18 @@ services:
       # Override ONLY if you intentionally want the api to bootstrap a different
       # apiKey from what the runner pod presents (advanced; you must reconcile manually).
       DEFAULT_RUNNER_API_KEY: ""
-      # DEFAULT_RUNNER_NAME gates the api's default-runner bootstrap. If empty,
-      # the api SKIPS creating the default runner row (apps/api/src/app.service.ts:99
-      # has `if (!this.configService.get('defaultRunner.name')) return`). With no
-      # runner row in DB, /api/sandbox returns "No available runners" because the
-      # scheduler's findAvailableRunners() query matches zero rows.
-      # Set to any non-empty string to enable bootstrap. Region defaults to "us"
-      # via DEFAULT_REGION_ID upstream, sandbox class to "container".
-      DEFAULT_RUNNER_NAME: "default-runner"
+      # DEFAULT_RUNNER_NAME gates the api's LEGACY default-runner bootstrap
+      # (apps/api/src/app.service.ts initializeDefaultRunner). In this chart
+      # runner records are owned by the runner-manager: its autoscaler
+      # (MIN_RUNNERS, default 1) creates a placeholder pod per sandbox node,
+      # registers a runner row via the api admin endpoints, and pushes config
+      # to the runner DaemonSet pod, which then heartbeats to state=ready.
+      # MUST stay empty in the manager-driven flow: a bootstrap row created
+      # here is counted as an "active" runner by the manager's autoscaler, so
+      # it never scales up, no config is ever pushed, the orphan row sits in
+      # state=initializing forever and sandbox creation fails with
+      # "No available runners".
+      DEFAULT_RUNNER_NAME: ""
       # Auto-generated as "https://{{.Values.baseDomain}}/dashboard" if not set or empty
       DASHBOARD_URL: ""
       # Auto-generated as "https://{{.Values.baseDomain}}" if not set or empty
@@ -468,10 +494,19 @@ services:
       LOG_LEVEL: "info"
       # Pod Wait Timeout - Timeout in seconds for waiting for pods to be scheduled to nodes
       POD_WAIT_TIMEOUT: "600"
+      # Autoscaler floor. The manager creates runner instances (placeholder
+      # pod + api registration + config push to the runner DaemonSet pod)
+      # until active DB runners >= MIN_RUNNERS. Keep >= 1: the binary default
+      # is 0, which leaves a fresh install with zero registered runners.
+      MIN_RUNNERS: "1"
+      # Optional autoscaler ceiling (unset = binary default).
+      MAX_RUNNERS: ""
       # Kubeconfig Path (Optional - for local development)
       # If not set, will use in-cluster configuration
       KUBECONFIG_PATH: ""
-      API_KEY: "secret_api_key"
+      # Runner token used when runner-manager configures runner instances.
+      # Leave empty to fall back to services.runner.env.API_TOKEN.
+      API_KEY: ""
       # Auto-generated as "https://{{.Values.baseDomain}}/api" if not set or empty
       SERVER_URL: "http://daytona-api:3000/api"
       REGION_ID: "us"
@@ -592,7 +627,7 @@ services:
     # Docker installer sidecar configuration (optional)
     dockerInstaller:
       enabled: true
-      image: "ubuntu:22.04"
+      image: "ubuntu:24.04"  # keep in lockstep with the Ubuntu 24.04 node requirement (noble deb URLs below)
       xfsStorageSize: "50G"
       # DNS servers for Docker containers (optional)
       # When set, all containers started by this Docker daemon will use these DNS resolvers
@@ -632,22 +667,31 @@ services:
     # Extra volumes for the pod (e.g. Secrets Store CSI Driver)
     extraVolumes: []
 
-  # Workaround for upstream Daytona v0.184.x-k8s-oss runner image bug.
-  # The runner's v2-healthcheck goroutine silently stops after ~2 heartbeats
-  # post-boot. The api's check-runners cron has a hard-coded 60s unresponsive
-  # threshold (NO env knob) so it flips runner.state=UNRESPONSIVE, which
-  # triggers REMOVE_SNAPSHOT cascade that wipes the default snapshot.
-  # This watchdog polls postgres and resets state='ready' when the last
-  # reported serviceHealth shows no unhealthy entries. Disable once upstream
-  # ships a fix. See templates/runner-state-keeper-deployment.yaml for full
-  # bug citation (file:line references to upstream code).
-  runnerStateKeeper:
+  # Reaps runner rows (and their sandbox rows) ONLY for nodes that no longer
+  # exist. The runner-manager autoscaler counts initializing/unresponsive
+  # rows as "active" and only scales up while active < MIN_RUNNERS, and
+  # nothing in v0.184.0-k8s-oss.1 ever retires a row whose node/pod is gone —
+  # so a recycled sandbox node would otherwise NEVER get a replacement runner
+  # registered. Two gates must BOTH pass before a row is reaped: heartbeat
+  # dead >= staleAfterMinutes in the DB, AND the backing pod absent from the
+  # cluster. Runners on live nodes (even mid-restart or mid-install) and
+  # their sandboxes are never touched. Healthy runners heartbeat every ~10s.
+  runnerReaper:
     enabled: true
-    pollIntervalSeconds: 5
+    schedule: "*/2 * * * *"
+    staleAfterMinutes: 5
     image:
       registry: docker.io
       repository: library/postgres
-      tag: "15-alpine"
+      tag: "17-alpine"
+      pullPolicy: IfNotPresent
+    # Used by the pod-census init container (the "is the node really gone"
+    # gate). Needs only `kubectl get pods`; any kubectl within version skew
+    # of the cluster works.
+    kubectlImage:
+      registry: docker.io
+      repository: alpine/kubectl
+      tag: "1.33.4"
       pullPolicy: IfNotPresent
     resources:
       requests:

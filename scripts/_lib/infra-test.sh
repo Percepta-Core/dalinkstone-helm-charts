@@ -51,8 +51,10 @@ omc::infra::psql() {
   if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
     omc::die "psql: POSTGRES_PASSWORD env not set; source .state/oss-secrets.env first"
   fi
+  # POSTGRES_PASSWORD is the SUPERUSER password (postgresql.auth.postgresPassword);
+  # the bitnami app user ("user") has a separate password, so connect as postgres.
   kubectl -n "$ns" exec "$pg_pod" -- env PGPASSWORD="$POSTGRES_PASSWORD" \
-    psql -U user -d daytona -t -A -c "$query" 2>/dev/null
+    psql -U postgres -d daytona -t -A -c "$query" 2>/dev/null
 }
 
 omc::infra::query_runners_table() {
@@ -66,7 +68,7 @@ omc::infra::query_runners_table() {
     omc::die "query_runners_table: POSTGRES_PASSWORD not set"
   fi
   kubectl -n "$ns" exec "$pg_pod" -- env PGPASSWORD="$POSTGRES_PASSWORD" \
-    psql -U user -d daytona -c \
+    psql -U postgres -d daytona -c \
     'SELECT id, name, region, state, "apiKey", "availabilityScore", cpu, "memoryGiB", "diskGiB", "lastChecked", "apiVersion", unschedulable, draining FROM runner ORDER BY "createdAt";' 2>&1
 }
 

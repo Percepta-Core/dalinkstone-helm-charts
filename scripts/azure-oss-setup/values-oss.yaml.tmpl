@@ -41,6 +41,13 @@ services:
   api:
     image:
       tag: "${RUNNER_IMAGE_TAG}"
+    env:
+      # REQUIRED at first boot: becomes the Daytona Admin user's API key.
+      # Missing env => api getOrThrow('admin.apiKey') throws => CrashLoopBackOff.
+      ADMIN_API_KEY: "${ADMIN_API_KEY}"
+      # Encryption-at-rest material (replaces the chart's CHANGE_ME placeholders).
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+      ENCRYPTION_SALT: "${ENCRYPTION_SALT}"
     ingress:
       enabled: true
       className: "nginx"
@@ -73,6 +80,10 @@ ${CERT_MANAGER_ANNOTATION}
   runnermanager:
     image:
       tag: "${RUNNER_IMAGE_TAG}"
+    env:
+      # Ensure the manager bootstraps (registers + configures) at least one
+      # runner on the sandbox node pool of a fresh cluster.
+      MIN_RUNNERS: "1"
 
   runner:
     enabled: true
@@ -80,7 +91,12 @@ ${CERT_MANAGER_ANNOTATION}
       tag: "${RUNNER_IMAGE_TAG}"
     dockerInstaller:
       dynamicHostAliases: []
-      insecureRegistries: []
+      # In self-signed TLS mode the runner's dockerd pushes/pulls snapshots
+      # against harbor.<baseDomain> whose cert is not CA-signed; docker then
+      # fails with "x509: certificate signed by unknown authority" and the
+      # default snapshot lands in state=error. up.sh sets this to
+      # ["harbor.<baseDomain>"] for self-signed and [] otherwise.
+      insecureRegistries: ${INSECURE_REGISTRIES}
 
 dex:
   enabled: true
@@ -142,7 +158,12 @@ harbor:
       enabled: true
       certSource: ${HARBOR_CERT_SOURCE}
       secret:
-        secretName: "harbor.${BASE_DOMAIN}-tls"
+        # Harbor can share the same wildcard certificate as API/Proxy in this
+        # flow, so we point at the base-domain secret instead of a Harbor-only
+        # secret. This avoids issuing an extra cert for just
+        # harbor.<baseDomain>, which has proven to leave Harbor TLS missing and
+        # break snapshot pulls.
+        secretName: "${BASE_DOMAIN}-tls"
     ingress:
       className: nginx
       annotations:

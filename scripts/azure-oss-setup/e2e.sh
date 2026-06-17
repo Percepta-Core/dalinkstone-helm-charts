@@ -27,6 +27,12 @@ API_URL="https://${BASE_DOMAIN}"
 HARBOR_URL="https://harbor.${BASE_DOMAIN}"
 DEX_URL="https://dex.${BASE_DOMAIN}"
 
+# Self-signed TLS mode (chart genSignedCert): curl needs -k to probe.
+CURL_TLS_OPTS=()
+if [[ "${TLS_MODE:-}" == "self-signed" ]]; then
+  CURL_TLS_OPTS=(-k)
+fi
+
 echo "=== Daytona OSS smoke test against $API_URL ==="
 echo ""
 
@@ -54,18 +60,18 @@ fi
 echo ""
 
 echo "[3/4] API HTTPS reachability?"
-if curl -fsS -o /dev/null -w "  %{http_code}\n" --max-time 15 "${API_URL}/health" 2>/dev/null; then
-  echo "  ✅ $API_URL/health reachable"
-elif curl -fsS -o /dev/null -w "  %{http_code}\n" --max-time 15 "${API_URL}/" 2>/dev/null; then
-  echo "  ✅ $API_URL reachable (no /health endpoint)"
+if curl -fsS "${CURL_TLS_OPTS[@]}" -o /dev/null -w "  %{http_code}\n" --max-time 15 "${API_URL}/api/health" 2>/dev/null; then
+  echo "  ✅ $API_URL/api/health reachable"
+elif curl -fsS "${CURL_TLS_OPTS[@]}" -o /dev/null -w "  %{http_code}\n" --max-time 15 "${API_URL}/" 2>/dev/null; then
+  echo "  ✅ $API_URL reachable (no /api/health endpoint)"
 else
   echo "  ❌ $API_URL not reachable — check cert-manager + ingress-nginx logs"
 fi
 echo ""
 
 echo "[4/4] Harbor + Dex reachability?"
-curl -fsS -o /dev/null -w "  Harbor: %{http_code}\n" --max-time 15 "${HARBOR_URL}/api/v2.0/health" 2>/dev/null || echo "  Harbor: not reachable"
-curl -fsS -o /dev/null -w "  Dex:    %{http_code}\n" --max-time 15 "${DEX_URL}/healthz" 2>/dev/null || echo "  Dex:    not reachable"
+curl -fsS "${CURL_TLS_OPTS[@]}" -o /dev/null -w "  Harbor: %{http_code}\n" --max-time 15 "${HARBOR_URL}/api/v2.0/health" 2>/dev/null || echo "  Harbor: not reachable"
+curl -fsS "${CURL_TLS_OPTS[@]}" -o /dev/null -w "  Dex:    %{http_code}\n" --max-time 15 "${DEX_URL}/dex/healthz" 2>/dev/null || echo "  Dex:    not reachable"
 echo ""
 
 echo "=== Manual verification next ==="

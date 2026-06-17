@@ -13,7 +13,7 @@
 #   3. creates resource group + AKS cluster (Workload Identity ready, Ubuntu 24.04)
 #      + sandbox node pool with daytona-sandbox-c label + taint
 #   4. updates kubeconfig
-#   5. VERIFIES Ubuntu 24.04 on sandbox nodes (NO EXCEPTIONS)
+#   5. VERIFIES Ubuntu 24.04 on all AKS nodes + sandbox-labeled nodes (NO EXCEPTIONS)
 #   6. namespace + ingress-nginx + cert-manager + Let's Encrypt ClusterIssuer
 #   7. waits for LoadBalancer hostname, prints 2 DNS records (base + wildcard)
 #   8. operator confirms DNS propagation
@@ -102,7 +102,7 @@ fi
 } > "$PROMPTS_FILE"
 chmod 600 "$PROMPTS_FILE"
 
-# === 2. Auto-generate subchart secrets (postgres/redis/minio/harbor) ========
+# === 2. Auto-generate subchart secrets (postgres/redis/minio/harbor/api) ====
 if [[ ! -f "$SECRETS_FILE" ]]; then
   omc::log INFO "=== Step 2/10: Generating subchart secrets ==="
   POSTGRES_PASSWORD="$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)"
@@ -122,6 +122,28 @@ if [[ ! -f "$SECRETS_FILE" ]]; then
   omc::log INFO "Auto-generated subchart secrets -> $SECRETS_FILE (mode 0600)"
 else
   omc::log INFO "Reusing existing subchart secrets from $SECRETS_FILE"
+fi
+
+# Append-if-missing secrets introduced after older state dirs were created.
+# ADMIN_API_KEY: REQUIRED by the api at first boot (getOrThrow('admin.apiKey')
+# has no in-code default; missing => bootstrap throw => CrashLoopBackOff).
+# It becomes the Daytona Admin user's API key — also what e2e.sh / the SDK use.
+if [[ -z "${ADMIN_API_KEY:-}" ]]; then
+  ADMIN_API_KEY="dtn_admin_$(openssl rand -hex 20)"
+  printf 'export ADMIN_API_KEY=%q\n' "$ADMIN_API_KEY" >> "$SECRETS_FILE"
+  omc::log INFO "Generated ADMIN_API_KEY -> appended to $SECRETS_FILE"
+fi
+# Encryption-at-rest material (api encrypts stored secrets with these; the
+# chart defaults are CHANGE_ME placeholders).
+if [[ -z "${ENCRYPTION_KEY:-}" ]]; then
+  ENCRYPTION_KEY="$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)"
+  printf 'export ENCRYPTION_KEY=%q\n' "$ENCRYPTION_KEY" >> "$SECRETS_FILE"
+  omc::log INFO "Generated ENCRYPTION_KEY -> appended to $SECRETS_FILE"
+fi
+if [[ -z "${ENCRYPTION_SALT:-}" ]]; then
+  ENCRYPTION_SALT="$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)"
+  printf 'export ENCRYPTION_SALT=%q\n' "$ENCRYPTION_SALT" >> "$SECRETS_FILE"
+  omc::log INFO "Generated ENCRYPTION_SALT -> appended to $SECRETS_FILE"
 fi
 
 # === 3. Resource group + AKS =================================================
@@ -204,7 +226,8 @@ az aks get-credentials \
   --overwrite-existing >/dev/null
 kubectl config current-context
 
-# === 5. ENFORCE Ubuntu 24.04 on the sandbox node pool =======================
+# === 5. ENFORCE Ubuntu 24.04 on all AKS nodes and the sandbox node pool ======
+omc::verify_node_ubuntu "24.04" "" 300
 omc::verify_node_ubuntu "24.04" "daytona-sandbox-c=true" 300
 
 # === 6. Namespace ============================================================
@@ -218,6 +241,11 @@ case "$TLS_MODE" in
   cloudflare-dns01)
     omc::cert_manager_install
     omc::cluster_issuer_apply_cf_dns01 "$CLUSTER_ISSUER_EMAIL" "$CLOUDFLARE_API_TOKEN"
+    # Start ACME issuance NOW (DNS-01 needs no A records, only the Cloudflare
+    # API). If we instead let ingress-shim create the certs at helm-install
+    # time, the api's first snapshot push to harbor.<base> races issuance and
+    # dies on the nginx fake cert (terminal snapshot state=error).
+    omc::certs_preissue "$BASE_DOMAIN" daytona "$CLUSTER_ISSUER"
     ;;
   self-signed)
     omc::log INFO "TLS_MODE=self-signed: skipping cert-manager; chart will genSignedCert at install time"
@@ -226,8 +254,7 @@ case "$TLS_MODE" in
     omc::log INFO "TLS_MODE=manual: skipping cert-manager; you must pre-create the TLS Secret"
     omc::log INFO "  Required secrets in namespace daytona BEFORE step 9:"
     omc::log INFO "    ${BASE_DOMAIN}-tls          (covers ${BASE_DOMAIN} + *.${BASE_DOMAIN})"
-    omc::log INFO "    harbor.${BASE_DOMAIN}-tls   (covers harbor.${BASE_DOMAIN})"
-    omc::confirm "Have you pre-created both TLS Secrets in namespace daytona?" \
+    omc::confirm "Have you pre-created the TLS Secret in namespace daytona?" \
       || omc::die "Aborted; pre-create the Secrets then re-run."
     ;;
 esac
@@ -256,6 +283,12 @@ Create them in your DNS provider NOW and wait for propagation.
 EOF
 omc::confirm "Have you created the DNS records above and waited for propagation?" \
   || omc::die "Aborted by operator. Re-run after creating DNS records."
+
+# Certs were pre-issued in step 7; they MUST be Ready before the chart
+# installs or the api's first snapshot push hits the ingress fake cert.
+if [[ "$TLS_MODE" == "cloudflare-dns01" ]]; then
+  omc::certs_wait_ready daytona 20m
+fi
 
 # === 9. helm dependency build + helm install =================================
 omc::log INFO "=== Step 9/10: helm dependency build + install daytona (OSS) ==="
@@ -287,9 +320,19 @@ case "$TLS_MODE" in
     HARBOR_CERT_SOURCE="secret"
     ;;
 esac
+# Self-signed Harbor cert => the runner's dockerd must treat harbor.<base>
+# as an insecure registry or snapshot push/pull dies with
+# "x509: certificate signed by unknown authority".
+if [[ "$TLS_MODE" == "self-signed" ]]; then
+  INSECURE_REGISTRIES="[\"harbor.${BASE_DOMAIN}\"]"
+else
+  INSECURE_REGISTRIES="[]"
+fi
 export CLUSTER_NAME BASE_DOMAIN CLUSTER_ISSUER RUNNER_IMAGE_TAG \
        POSTGRES_PASSWORD REDIS_PASSWORD MINIO_ROOT_PASSWORD HARBOR_ADMIN_PASSWORD \
+       ADMIN_API_KEY ENCRYPTION_KEY ENCRYPTION_SALT \
        CERT_MANAGER_ANNOTATION INGRESS_SELFSIGNED HARBOR_CERT_SOURCE \
+       INSECURE_REGISTRIES \
        INTERNAL_REGISTRY_HOST=""
 omc::render_template "$SCRIPT_DIR/values-oss.yaml.tmpl" "$VALUES_OUT"
 
@@ -307,6 +350,7 @@ Registry (Harbor): https://harbor.${BASE_DOMAIN}
 Sandbox URLs:      https://<sandbox-id>.${BASE_DOMAIN}
 
 Admin credentials (from $SECRETS_FILE):
+  Daytona admin API key: \$ADMIN_API_KEY  (use as DAYTONA_API_KEY for SDK/e2e.sh)
   Harbor admin / \$HARBOR_ADMIN_PASSWORD
   Postgres postgres / \$POSTGRES_PASSWORD
   Redis (auth password)

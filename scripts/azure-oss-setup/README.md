@@ -71,6 +71,12 @@ Choices persist in `scripts/azure-oss-setup/.state/prompts.env` (mode 0600)
 so re-running picks up where you left off. Secrets persist in
 `.state/oss-secrets.env` (also mode 0600). `.state/` is gitignored repo-wide.
 
+`up.sh` also auto-generates an **admin API key** (`ADMIN_API_KEY` in
+`.state/oss-secrets.env`). On first boot the api creates the `Daytona Admin`
+user with this key — use it as `DAYTONA_API_KEY` for the SDK, `e2e.sh`, and
+the infra tests. (The api REQUIRES this env at first boot; without it the
+process throws at bootstrap and CrashLoopBackOffs.)
+
 ---
 
 ## Cloudflare API token setup
@@ -121,7 +127,27 @@ that's expected to be working:
 ```bash
 # Hard-fail validation: pods Ready, runner READY in DB, cert real, token wiring correct
 bash scripts/azure-oss-setup/test/infra/fresh-install-validate.sh
+
+# End-to-end sandbox + preview URL proof (creates a public sandbox, serves
+# HTTP from it, fetches it through https://3000-<id>.<base>, deletes it)
+bash scripts/azure-oss-setup/test/infra/sandbox-preview-test.sh
 ```
+
+> **How runners come up**: the runner-manager autoscaler (MIN_RUNNERS=1)
+> creates a `node-placeholder` pod on the sandbox node pool, registers a
+> runner row with the api, and pushes config to the runner DaemonSet pod
+> (matched by its `app=daytona-runner` label). Only then does the runner
+> start heartbeating and flip to `ready` (~60-90s after install). The
+> legacy api-side default-runner bootstrap (`DEFAULT_RUNNER_NAME`) must stay
+> disabled — a bootstrap row blocks the autoscaler floor.
+>
+> **How runners survive replacement**: (a) runner POD restarts (helm
+> upgrades, OOM, deletes) self-heal via a postStart hook that replays the
+> persisted config to the runner's /system/config endpoint — same identity,
+> heartbeats resume in seconds; (b) NODE recycles are healed by the
+> `runner-reaper` CronJob, which deletes runner rows whose heartbeat has
+> been dead ≥5 min so the manager's autoscaler registers a fresh runner on
+> the replacement node (~2-4 min end-to-end).
 
 Expected output: every check `PASS [...]`, exit code 0. If any check fails,
 the script tells you what's broken and points at the diagnostic.
@@ -213,8 +239,8 @@ before teardown if you need to keep the Harbor admin password, etc.**
 
 ## Hard constraints (NO EXCEPTIONS)
 
-- Ubuntu 24.04 sandbox nodes — enforced via `omc::verify_node_ubuntu`
-  post-create. Other Ubuntu versions will refuse to install.
+- Ubuntu 24.04 on every AKS node — enforced via `omc::verify_node_ubuntu`
+  post-create, with a second sandbox-selector gate. Other Ubuntu versions will refuse to install.
 - Daytona components at v0.184.0 (Chart.AppVersion + explicit tag pins in
   values.yaml + image tag pin in values-oss.yaml.tmpl)
 - Python SDK at `daytona==0.184.*` (pinned in test/requirements.txt)

@@ -485,7 +485,7 @@ services:
       targetPort: 443
     dockerInstaller:
       enabled: true
-      image: "ubuntu:22.04"
+      image: "ubuntu:24.04"  # keep in lockstep with the Ubuntu 24.04 node requirement (noble deb URLs below)
       xfsStorageSize: "50G"
       # DNS resolvers added to /etc/docker/daemon.json. All containers started
       # by this Docker daemon will use these resolvers.

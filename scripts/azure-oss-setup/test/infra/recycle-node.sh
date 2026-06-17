@@ -62,6 +62,17 @@ omc::log INFO "Target node: $TARGET_NODE"
 # Recycle via the helper
 omc::infra::aks_delete_node "$CLUSTER_NAME" "$RESOURCE_GROUP" "sandbox" "$TARGET_NODE"
 
+# delete-machines/delete-instances REDUCE the pool's node count and the
+# sandbox pool has no autoscaler, so nothing would ever provision a
+# replacement. Scale the pool back to its pre-recycle count explicitly.
+omc::log INFO "Scaling sandbox pool back to $BEFORE_COUNT node(s)..."
+az aks nodepool scale \
+  --cluster-name "$CLUSTER_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --name sandbox \
+  --node-count "$BEFORE_COUNT" >/dev/null \
+  || omc::die "Failed to scale sandbox pool back to $BEFORE_COUNT"
+
 # Wait for AKS to provision the replacement
 NEW_NODE="$(omc::infra::wait_new_sandbox_node "$BEFORE_NODES" 600)" \
   || omc::die "AKS did not provision a replacement sandbox node within 10 min"

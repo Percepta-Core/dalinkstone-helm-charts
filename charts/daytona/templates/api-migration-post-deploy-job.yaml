@@ -60,7 +60,7 @@ spec:
           args: ["migration:run:post-deploy"]
           env:
             - name: DEFAULT_RUNNER_NAME
-              value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "default-runner" | quote }}
+              value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "" | quote }}
             # Application configuration
             - name: ENVIRONMENT
               value: {{ .Values.services.api.env.ENVIRONMENT | default "production" | quote }}
@@ -248,13 +248,14 @@ spec:
             # Dex is enabled - use Dex configuration
             {{- $dexHostname := .Values.dex.ingress.hostname | default (printf "dex.%s" .Values.baseDomain) -}}
             {{- $templatedDexHostname := tpl $dexHostname $ -}}
+            {{- $internalDexIssuerUrl := printf "http://%s-dex:%s/dex" (include "daytona.fullname" .) (.Values.dex.service.port | default 5556 | toString) -}}
             {{- $dexIssuerUrl := "" -}}
-            {{- if .Values.dex.config.issuer -}}
+            {{- if .Values.services.api.env.OIDC_ISSUER_BASE_URL }}
+              {{- $dexIssuerUrl = .Values.services.api.env.OIDC_ISSUER_BASE_URL -}}
+            {{- else if .Values.dex.config.issuer -}}
               {{- $dexIssuerUrl = .Values.dex.config.issuer -}}
-            {{- else if and .Values.dex.enabled .Values.dex.ingress.enabled -}}
-              {{- $dexIssuerUrl = printf "https://%s/dex" $templatedDexHostname -}}
             {{- else -}}
-              {{- $dexIssuerUrl = printf "http://%s-dex:%s/dex" (include "daytona.fullname" .) (.Values.dex.service.port | default 5556 | toString) -}}
+              {{- $dexIssuerUrl = $internalDexIssuerUrl -}}
             {{- end }}
             {{- $dexPublicUrl := "" -}}
             {{- if and .Values.dex.enabled .Values.dex.ingress.enabled -}}
@@ -293,10 +294,18 @@ spec:
               value: {{ printf "http://%s-minio:%s" .Release.Name ((.Values.minio.service.port | default 9000) | toString) | quote }}
             - name: S3_STS_ENDPOINT
               value: {{ printf "http://%s-minio:%s/minio/v1/assume-role" .Release.Name ((.Values.minio.service.port | default 9000) | toString) | quote }}
+            - name: S3_REGION
+              value: {{ .Values.services.api.env.S3_REGION | default "us-east-1" | quote }}
             - name: S3_ACCESS_KEY
               value: {{ .Values.minio.rootUser | quote }}
             - name: S3_SECRET_KEY
               value: {{ .Values.minio.rootPassword | quote }}
+            - name: S3_DEFAULT_BUCKET
+              value: {{ .Values.services.api.env.S3_DEFAULT_BUCKET | default "daytona" | quote }}
+            - name: S3_ACCOUNT_ID
+              value: {{ .Values.services.api.env.S3_ACCOUNT_ID | default "" | quote }}
+            - name: S3_ROLE_NAME
+              value: {{ .Values.services.api.env.S3_ROLE_NAME | default "" | quote }}
             {{- else }}
             - name: S3_ENDPOINT
               value: {{ .Values.services.api.env.S3_ENDPOINT | default "" | quote }}
