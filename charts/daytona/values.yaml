@@ -1025,6 +1025,26 @@ harbor:
         #multipartcopythresholdsize: "33554432"
   trivy:
     enabled: false
+  # Harbor ships these subcomponents with no requests/limits. The registry
+  # process itself is small; most of its cgroup memory is reclaimable page
+  # cache from serving blobs off the filesystem backend. Request enough for
+  # the process and cap the cache so the scheduler accounts for it without
+  # the container appearing to need multiple GiB.
+  registry:
+    registry:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    controller:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
   database:
     # if external database is used, set "type" to "external"
     # and fill the connection information in "external" section
@@ -1037,10 +1057,12 @@ harbor:
       serviceAccountName: ""
       # mount the service account token
       automountServiceAccountToken: false
-      # resources:
-      #  requests:
-      #    memory: 256Mi
-      #    cpu: 100m
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
       # The timeout used in livenessProbe; 1 to 5 seconds
       livenessProbe:
         timeoutSeconds: 1
@@ -1116,10 +1138,12 @@ harbor:
       serviceAccountName: ""
       # mount the service account token
       automountServiceAccountToken: false
-      # resources:
-      #  requests:
-      #    memory: 256Mi
-      #    cpu: 100m
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
       extraEnvVars: []
       nodeSelector: {}
       tolerations: []
