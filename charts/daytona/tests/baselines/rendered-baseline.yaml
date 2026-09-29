@@ -1666,7 +1666,7 @@ spec:
       containers:
         # Docker installer sidecar - installs Docker on the host node
         - name: docker-installer
-          image: ubuntu:24.04
+          image: docker.io/library/ubuntu:24.04
           securityContext:
             privileged: true
           env:
@@ -2304,7 +2304,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: core
-        image: goharbor/harbor-core:v2.14.0
+        image: docker.io/goharbor/harbor-core:v2.14.0
         imagePullPolicy: IfNotPresent
         startupProbe:
           httpGet:
@@ -2447,7 +2447,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: jobservice
-        image: goharbor/harbor-jobservice:v2.14.0
+        image: docker.io/goharbor/harbor-jobservice:v2.14.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2550,7 +2550,7 @@ spec:
       automountServiceAccountToken: false
       containers:
       - name: portal
-        image: goharbor/harbor-portal:v2.14.0
+        image: docker.io/goharbor/harbor-portal:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -2644,7 +2644,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: registry
-        image: goharbor/registry-photon:v2.14.0
+        image: docker.io/goharbor/registry-photon:v2.14.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2687,7 +2687,7 @@ spec:
           mountPath: /etc/registry/config.yml
           subPath: config.yml
       - name: registryctl
-        image: goharbor/harbor-registryctl:v2.14.0
+        image: docker.io/goharbor/harbor-registryctl:v2.14.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2795,7 +2795,7 @@ spec:
         fsGroup: 2000
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -2811,7 +2811,7 @@ spec:
             - name: DB_PORT
               value: "5432"
         - name: wait-for-redis
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -2827,7 +2827,7 @@ spec:
             - name: REDIS_PORT
               value: "6379"
         - name: wait-for-dex
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -3122,7 +3122,7 @@ spec:
     spec:
       initContainers:
         - name: volume-permissions
-          image: busybox:latest
+          image: docker.io/library/busybox:latest
           command:
             - sh
             - -c
@@ -3487,7 +3487,7 @@ spec:
       # use this init container to correct the permission
       # as "fsGroup" applied before the init container running, the container has enough permission to execute the command
       - name: "data-permissions-ensurer"
-        image: goharbor/harbor-db:v2.14.0
+        image: docker.io/goharbor/harbor-db:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -3506,7 +3506,7 @@ spec:
             subPath: 
       containers:
       - name: database
-        image: goharbor/harbor-db:v2.14.0
+        image: docker.io/goharbor/harbor-db:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -3615,7 +3615,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: redis
-        image: goharbor/redis-photon:v2.14.0
+        image: docker.io/goharbor/redis-photon:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -4608,7 +4608,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -4817,7 +4817,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -5026,7 +5026,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

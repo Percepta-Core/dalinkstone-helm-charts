@@ -28,7 +28,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

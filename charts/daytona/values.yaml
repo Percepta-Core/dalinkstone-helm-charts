@@ -632,7 +632,7 @@ services:
     # Docker installer sidecar configuration (optional)
     dockerInstaller:
       enabled: true
-      image: "ubuntu:24.04"  # keep in lockstep with the Ubuntu 24.04 node requirement (noble deb URLs below)
+      image: "docker.io/library/ubuntu:24.04"  # keep in lockstep with the Ubuntu 24.04 node requirement (noble deb URLs below)
       xfsStorageSize: "50G"
       # DNS servers for Docker containers (optional)
       # When set, all containers started by this Docker daemon will use these DNS resolvers
@@ -1030,6 +1030,17 @@ harbor:
         #multipartcopythresholdsize: "33554432"
   trivy:
     enabled: false
+  # Ryvn release creation rejects images without an explicit registry, and
+  # Harbor's defaults are bare goharbor/* names. Same images, qualified.
+  portal:
+    image:
+      repository: docker.io/goharbor/harbor-portal
+  core:
+    image:
+      repository: docker.io/goharbor/harbor-core
+  jobservice:
+    image:
+      repository: docker.io/goharbor/harbor-jobservice
   # Harbor ships these subcomponents with no requests/limits. The registry
   # process itself is small; most of its cgroup memory is reclaimable page
   # cache from serving blobs off the filesystem backend. Request enough for
@@ -1037,6 +1048,8 @@ harbor:
   # the container appearing to need multiple GiB.
   registry:
     registry:
+      image:
+        repository: docker.io/goharbor/registry-photon
       resources:
         requests:
           cpu: 100m
@@ -1044,6 +1057,8 @@ harbor:
         limits:
           memory: 1Gi
     controller:
+      image:
+        repository: docker.io/goharbor/harbor-registryctl
       resources:
         requests:
           cpu: 50m
@@ -1056,7 +1071,7 @@ harbor:
     type: internal
     internal:
       image:
-        repository: goharbor/harbor-db
+        repository: docker.io/goharbor/harbor-db
         tag: v2.14.0
       # set the service account to be used, default if left empty
       serviceAccountName: ""
@@ -1137,7 +1152,7 @@ harbor:
     type: internal
     internal:
       image:
-        repository: goharbor/redis-photon
+        repository: docker.io/goharbor/redis-photon
         tag: v2.14.0
       # set the service account to be used, default if left empty
       serviceAccountName: ""
