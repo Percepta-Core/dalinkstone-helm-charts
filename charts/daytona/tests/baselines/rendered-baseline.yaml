@@ -3296,7 +3296,7 @@ spec:
             readOnlyRootFilesystem: false
             runAsNonRoot: false
             runAsUser: 0
-          image: "docker.io/daytonaio/daytona-runner-manager:v0.183.0"
+          image: "docker.io/daytonaio/daytona-runner-manager:v0.184.0-k8s-oss.1-amd64"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

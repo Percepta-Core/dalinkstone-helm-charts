@@ -471,7 +471,12 @@ services:
     image:
       registry: docker.io
       repository: daytonaio/daytona-runner-manager
-      tag: "v0.183.0" # explicit pin; otherwise defaults to Chart.AppVersion. OSS path uses v0.184.0-k8s-oss.1-amd64 via values-oss.yaml.tmpl (NOT -k8s-oss.3 — that patch has a runner heartbeat-stop bug; see scripts/azure-oss-setup/up.sh RUNNER_IMAGE_TAG prompt for the full story).
+      # daytonaio never published a runner-manager v0.183.0, so that default
+      # broke Ryvn's release inventory. This is the tag every installation
+      # already overrides to (NOT -k8s-oss.3 — that patch has a runner
+      # heartbeat-stop bug; see scripts/azure-oss-setup/up.sh RUNNER_IMAGE_TAG
+      # prompt for the full story).
+      tag: "v0.184.0-k8s-oss.1-amd64"
       pullPolicy: IfNotPresent
     # Service configuration
     service:
