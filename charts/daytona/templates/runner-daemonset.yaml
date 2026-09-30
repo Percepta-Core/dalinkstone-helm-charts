@@ -149,7 +149,29 @@ spec:
               
               # Offline packages location (used in airgapped mode)
               PACKAGES_DIR="/tmp/offline-packages"
-              
+
+              # A freshly booted node (e.g. after an AKS node image upgrade) is often
+              # still running its own apt/dpkg work when this pod starts. dpkg does not
+              # wait for its lock, so without this every install below fails and the
+              # node comes up with no Sysbox. apt-get honors the timeout; bare dpkg
+              # calls go through wait_for_dpkg_lock first.
+              mkdir -p /etc/apt/apt.conf.d
+              echo 'DPkg::Lock::Timeout "600";' > /etc/apt/apt.conf.d/90daytona-dpkg-lock-timeout
+
+              wait_for_dpkg_lock() {
+                waited=0
+                while { command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; } \
+                    || pgrep -x 'dpkg|apt|apt-get|unattended-upgr' >/dev/null 2>&1; do
+                  if [ "$waited" -ge 600 ]; then
+                    echo "dpkg lock still held after ${waited}s, continuing anyway"
+                    return 0
+                  fi
+                  [ $((waited % 30)) -eq 0 ] && echo "Waiting for dpkg lock held by another process (${waited}s)..."
+                  sleep 5
+                  waited=$((waited + 5))
+                done
+              }
+
               {{- if .Values.services.runner.dockerInstaller.airgapped.enabled }}
               # Function to install all dependencies from offline packages
               install_dependencies() {
@@ -162,6 +184,7 @@ spec:
                 
                 echo "Installing all dependency .deb packages (first pass)..."
                 cd $PACKAGES_DIR/dependencies
+                wait_for_dpkg_lock
                 sudo dpkg -i --skip-same-version --refuse-downgrade *.deb 2>/dev/null || true
                 
                 echo "Installing all dependency .deb packages (second pass)..."
@@ -190,6 +213,7 @@ spec:
                 fi
                 
                 # Install Docker CLI first, then Docker CE
+                wait_for_dpkg_lock
                 echo "Installing Docker CE CLI..."
                 dpkg --force-depends -i $PACKAGES_DIR/docker/docker-ce-cli_*.deb
                 
@@ -230,6 +254,7 @@ spec:
                 systemctl stop docker 2>/dev/null || true
                 
                 # Install Sysbox package
+                wait_for_dpkg_lock
                 echo "Installing Sysbox package..."
                 dpkg -i $PACKAGES_DIR/sysbox/sysbox-ce_*.deb || {
                   echo "Sysbox install had issues, running dpkg configure..."
@@ -275,6 +300,7 @@ spec:
                   wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-ce-cli_${DOCKER_VERSION}_amd64.deb
                   #wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-buildx-plugin_0.19.3-1~ubuntu.24.04~noble_amd64.deb
                   # Install with --force-depends to skip the containerd.io dependency
+                  wait_for_dpkg_lock
                   dpkg --force-depends -i docker-ce-cli_${DOCKER_VERSION}_amd64.deb
                   dpkg --force-depends -i docker-ce_${DOCKER_VERSION}_amd64.deb
 
@@ -356,9 +382,11 @@ spec:
                   
                   # Install Sysbox
                   echo "Installing Sysbox package..."
+                  wait_for_dpkg_lock
                   dpkg -i sysbox-ce_0.6.4-0.linux_amd64.deb || {
                     echo "Installing Sysbox dependencies..."
                     apt-get install -f -y
+                    wait_for_dpkg_lock
                     dpkg -i sysbox-ce_0.6.4-0.linux_amd64.deb
                   }
                   
@@ -541,9 +569,22 @@ spec:
               echo ""
               echo "Sysbox status:"
               systemctl status sysbox --no-pager -l || echo "Sysbox service status not available"
-              
+
+              if [ ! -x /usr/bin/sysbox-runc ] || [ ! -x /usr/bin/dockerd ] || ! command -v docker >/dev/null 2>&1 \
+                  || ! systemctl is-active --quiet sysbox || ! systemctl is-active --quiet docker; then
+                echo "ERROR: Docker/Sysbox are not installed and running on this node"
+                exit 1
+              fi
+
               EOF
-              
+
+              # Fail the container rather than monitor a node with no Sysbox: the pod
+              # goes NotReady and kubelet restarts the installer, which retries.
+              if [ $? -ne 0 ]; then
+                echo "Docker and Sysbox installation failed on the host node, exiting to retry"
+                exit 1
+              fi
+
               echo "Docker and Sysbox installer initialized. Monitoring services..."
               
               # Monitor and ensure Docker and Sysbox stay running

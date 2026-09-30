@@ -1666,7 +1666,7 @@ spec:
       containers:
         # Docker installer sidecar - installs Docker on the host node
         - name: docker-installer
-          image: ubuntu:24.04
+          image: docker.io/library/ubuntu:24.04
           securityContext:
             privileged: true
           env:
@@ -1700,6 +1700,28 @@ spec:
               
               # Offline packages location (used in airgapped mode)
               PACKAGES_DIR="/tmp/offline-packages"
+
+              # A freshly booted node (e.g. after an AKS node image upgrade) is often
+              # still running its own apt/dpkg work when this pod starts. dpkg does not
+              # wait for its lock, so without this every install below fails and the
+              # node comes up with no Sysbox. apt-get honors the timeout; bare dpkg
+              # calls go through wait_for_dpkg_lock first.
+              mkdir -p /etc/apt/apt.conf.d
+              echo 'DPkg::Lock::Timeout "600";' > /etc/apt/apt.conf.d/90daytona-dpkg-lock-timeout
+
+              wait_for_dpkg_lock() {
+                waited=0
+                while { command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; } \
+                    || pgrep -x 'dpkg|apt|apt-get|unattended-upgr' >/dev/null 2>&1; do
+                  if [ "$waited" -ge 600 ]; then
+                    echo "dpkg lock still held after ${waited}s, continuing anyway"
+                    return 0
+                  fi
+                  [ $((waited % 30)) -eq 0 ] && echo "Waiting for dpkg lock held by another process (${waited}s)..."
+                  sleep 5
+                  waited=$((waited + 5))
+                done
+              }
               # Function to install Docker and XFS tools (online mode)
               install_docker() {
                 if command -v docker >/dev/null 2>&1; then
@@ -1735,6 +1757,7 @@ spec:
                   wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-ce-cli_${DOCKER_VERSION}_amd64.deb
                   #wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-buildx-plugin_0.19.3-1~ubuntu.24.04~noble_amd64.deb
                   # Install with --force-depends to skip the containerd.io dependency
+                  wait_for_dpkg_lock
                   dpkg --force-depends -i docker-ce-cli_${DOCKER_VERSION}_amd64.deb
                   dpkg --force-depends -i docker-ce_${DOCKER_VERSION}_amd64.deb
 
@@ -1816,9 +1839,11 @@ spec:
                   
                   # Install Sysbox
                   echo "Installing Sysbox package..."
+                  wait_for_dpkg_lock
                   dpkg -i sysbox-ce_0.6.4-0.linux_amd64.deb || {
                     echo "Installing Sysbox dependencies..."
                     apt-get install -f -y
+                    wait_for_dpkg_lock
                     dpkg -i sysbox-ce_0.6.4-0.linux_amd64.deb
                   }
                   
@@ -1989,9 +2014,22 @@ spec:
               echo ""
               echo "Sysbox status:"
               systemctl status sysbox --no-pager -l || echo "Sysbox service status not available"
-              
+
+              if [ ! -x /usr/bin/sysbox-runc ] || [ ! -x /usr/bin/dockerd ] || ! command -v docker >/dev/null 2>&1 \
+                  || ! systemctl is-active --quiet sysbox || ! systemctl is-active --quiet docker; then
+                echo "ERROR: Docker/Sysbox are not installed and running on this node"
+                exit 1
+              fi
+
               EOF
-              
+
+              # Fail the container rather than monitor a node with no Sysbox: the pod
+              # goes NotReady and kubelet restarts the installer, which retries.
+              if [ $? -ne 0 ]; then
+                echo "Docker and Sysbox installation failed on the host node, exiting to retry"
+                exit 1
+              fi
+
               echo "Docker and Sysbox installer initialized. Monitoring services..."
               
               # Monitor and ensure Docker and Sysbox stay running
@@ -2266,7 +2304,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: core
-        image: goharbor/harbor-core:v2.14.0
+        image: docker.io/goharbor/harbor-core:v2.14.0
         imagePullPolicy: IfNotPresent
         startupProbe:
           httpGet:
@@ -2409,7 +2447,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: jobservice
-        image: goharbor/harbor-jobservice:v2.14.0
+        image: docker.io/goharbor/harbor-jobservice:v2.14.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2512,7 +2550,7 @@ spec:
       automountServiceAccountToken: false
       containers:
       - name: portal
-        image: goharbor/harbor-portal:v2.14.0
+        image: docker.io/goharbor/harbor-portal:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -2606,7 +2644,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: registry
-        image: goharbor/registry-photon:v2.14.0
+        image: docker.io/goharbor/registry-photon:v2.14.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2649,7 +2687,7 @@ spec:
           mountPath: /etc/registry/config.yml
           subPath: config.yml
       - name: registryctl
-        image: goharbor/harbor-registryctl:v2.14.0
+        image: docker.io/goharbor/harbor-registryctl:v2.14.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2757,7 +2795,7 @@ spec:
         fsGroup: 2000
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -2773,7 +2811,7 @@ spec:
             - name: DB_PORT
               value: "5432"
         - name: wait-for-redis
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -2789,7 +2827,7 @@ spec:
             - name: REDIS_PORT
               value: "6379"
         - name: wait-for-dex
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -3084,7 +3122,7 @@ spec:
     spec:
       initContainers:
         - name: volume-permissions
-          image: busybox:latest
+          image: docker.io/library/busybox:latest
           command:
             - sh
             - -c
@@ -3258,7 +3296,7 @@ spec:
             readOnlyRootFilesystem: false
             runAsNonRoot: false
             runAsUser: 0
-          image: "docker.io/daytonaio/daytona-runner-manager:v0.183.0"
+          image: "docker.io/daytonaio/daytona-runner-manager:v0.184.0-k8s-oss.1-amd64"
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -3449,7 +3487,7 @@ spec:
       # use this init container to correct the permission
       # as "fsGroup" applied before the init container running, the container has enough permission to execute the command
       - name: "data-permissions-ensurer"
-        image: goharbor/harbor-db:v2.14.0
+        image: docker.io/goharbor/harbor-db:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -3468,7 +3506,7 @@ spec:
             subPath: 
       containers:
       - name: database
-        image: goharbor/harbor-db:v2.14.0
+        image: docker.io/goharbor/harbor-db:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -3577,7 +3615,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: redis
-        image: goharbor/redis-photon:v2.14.0
+        image: docker.io/goharbor/redis-photon:v2.14.0
         imagePullPolicy: IfNotPresent
         securityContext: 
           allowPrivilegeEscalation: false
@@ -4570,7 +4608,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -4779,7 +4817,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -4988,7 +5026,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

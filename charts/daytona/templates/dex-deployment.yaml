@@ -27,7 +27,7 @@ spec:
       {{- end }}
       initContainers:
         - name: volume-permissions
-          image: busybox:latest
+          image: docker.io/library/busybox:latest
           command:
             - sh
             - -c

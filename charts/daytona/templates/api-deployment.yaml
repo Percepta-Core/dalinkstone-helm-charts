@@ -42,7 +42,7 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -66,7 +66,7 @@ spec:
             {{- end }}
         {{- if or .Values.redis.enabled .Values.externalRedis.host }}
         - name: wait-for-redis
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -91,7 +91,7 @@ spec:
         {{- end }}
         {{- if .Values.minio.enabled }}
         - name: wait-for-minio
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -109,7 +109,7 @@ spec:
         {{- end }}
         {{- if .Values.dex.enabled }}
         - name: wait-for-dex
-          image: busybox:1.37
+          image: docker.io/library/busybox:1.37
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
