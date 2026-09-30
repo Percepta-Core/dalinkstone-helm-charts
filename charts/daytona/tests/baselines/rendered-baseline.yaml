@@ -1674,6 +1674,13 @@ spec:
               value: "50G"
             - name: AIRGAPPED_MODE
               value: "false"
+          readinessProbe:
+            exec:
+              command: ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "--", "systemctl", "is-active", "--quiet", "sysbox"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           volumeMounts:
             - name: host-root
               mountPath: /host

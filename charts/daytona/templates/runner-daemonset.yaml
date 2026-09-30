@@ -105,6 +105,17 @@ spec:
               value: {{ .Values.services.runner.dockerInstaller.xfsStorageSize | quote }}
             - name: AIRGAPPED_MODE
               value: {{ .Values.services.runner.dockerInstaller.airgapped.enabled | quote }}
+          {{- with .Values.services.runner.dockerInstaller.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            exec:
+              command: ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "--", "systemctl", "is-active", "--quiet", "sysbox"]
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+            successThreshold: 1
+          {{- end }}
+          {{- end }}
           volumeMounts:
             - name: host-root
               mountPath: /host
