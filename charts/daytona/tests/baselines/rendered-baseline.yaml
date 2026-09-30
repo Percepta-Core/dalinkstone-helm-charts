@@ -1674,6 +1674,13 @@ spec:
               value: "50G"
             - name: AIRGAPPED_MODE
               value: "false"
+          readinessProbe:
+            exec:
+              command: ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "--", "systemctl", "is-active", "--quiet", "sysbox"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           volumeMounts:
             - name: host-root
               mountPath: /host
@@ -1955,15 +1962,9 @@ spec:
                 
                 mkdir -p /etc/docker
                 
-                # Create or update Docker daemon configuration
-                if [ -f /etc/docker/daemon.json ]; then
-                  # Backup existing config
-                  cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
-                fi
-                
                 # Write Docker daemon config with Sysbox runtime
                 # Note: Not including storage-driver to avoid conflicts with GKE systemd flags
-                cat > /etc/docker/daemon.json << 'DOCKERCONFIG'
+                cat > /etc/docker/daemon.json.new << 'DOCKERCONFIG'
               {
                 "runtimes": {
                   "sysbox-runc": {
@@ -1979,7 +1980,15 @@ spec:
               }
               DOCKERCONFIG
                 
-                echo "Docker configuration updated"
+                if cmp -s /etc/docker/daemon.json.new /etc/docker/daemon.json; then
+                  rm -f /etc/docker/daemon.json.new
+                  echo "Docker configuration unchanged"
+                else
+                  [ -f /etc/docker/daemon.json ] && cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+                  mv /etc/docker/daemon.json.new /etc/docker/daemon.json
+                  DOCKER_CONFIG_CHANGED=1
+                  echo "Docker configuration updated"
+                fi
                 return 0
               }
               
@@ -2000,9 +2009,13 @@ spec:
               systemctl enable sysbox 2>/dev/null || true
               systemctl start sysbox 2>/dev/null || true
               
-              # Start Docker
-              echo "Starting Docker with Sysbox runtime..."
-              systemctl restart docker
+              # Restarting dockerd stops every sandbox on the node, so only do it when needed.
+              if [ "${DOCKER_CONFIG_CHANGED:-0}" = 1 ] || ! systemctl is-active --quiet docker; then
+                echo "Starting Docker with Sysbox runtime..."
+                systemctl restart docker
+              else
+                echo "Docker already running with current config, not restarting"
+              fi
               
               # Verify installation
               echo "=== Verification ==="

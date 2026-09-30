@@ -665,6 +665,14 @@ services:
         # Image containing pre-packaged .deb files and dependencies
         # The image should have packages at /packages/packages.tar.gz
         packagesImage: "daytonaio/daytona-runner-packages:v0.0.2"
+      # Marks the runner pod NotReady while sysbox.service isn't active on the
+      # host, so a node that can't run sandboxes stops reporting healthy.
+      # Readiness only: a failing check never restarts anything.
+      readinessProbe:
+        enabled: true
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
     # Extra environment variables (for valueFrom or additional custom vars)
     extraEnv: []
     # Extra volume mounts for the container (e.g. Secrets Store CSI Driver)
