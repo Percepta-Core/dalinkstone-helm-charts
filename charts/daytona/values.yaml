@@ -629,7 +629,7 @@ services:
       listenPort: 5000
       targetHost: "registry.external.com"
       targetPort: 443
-    # Docker installer sidecar configuration (optional)
+    # Host runtime init container and monitoring sidecar (optional)
     dockerInstaller:
       enabled: true
       image: "docker.io/library/ubuntu:24.04"  # keep in lockstep with the Ubuntu 24.04 node requirement (noble deb URLs below)
@@ -665,8 +665,8 @@ services:
         # Image containing pre-packaged .deb files and dependencies
         # The image should have packages at /packages/packages.tar.gz
         packagesImage: "daytonaio/daytona-runner-packages:v0.0.2"
-      # Marks the runner pod NotReady while sysbox.service isn't active on the
-      # host, so a node that can't run sandboxes stops reporting healthy.
+      # Marks the runner pod NotReady while Docker or Sysbox is inactive on
+      # the host. Initial setup must succeed before the runner starts.
       # Readiness only: a failing check never restarts anything.
       readinessProbe:
         enabled: true

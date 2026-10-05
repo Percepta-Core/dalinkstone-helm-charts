@@ -807,6 +807,31 @@ services:
       # ... other configuration
 ```
 
+### Runner host initialization
+
+With `services.runner.dockerInstaller.enabled=true`, `docker-installer` is an
+init container: Docker and Sysbox must be installed, active, and the Docker API
+reachable before the runner starts. Airgapped package extraction runs first.
+Long package-manager lock waits therefore keep the pod Pending instead of
+consuming runner-manager's initial configuration retries. After setup,
+`docker-monitor` keeps the existing service recovery loop and readiness check.
+Inspect installation logs with `kubectl logs <runner-pod> -c docker-installer`
+and ongoing service checks with `-c docker-monitor`.
+
+This prevents the slow-host-bootstrap race. It does not repair an existing
+stale runner token or add reconciliation to the external runner-manager binary.
+Before promoting the change, validate a cold node with installation delayed
+beyond the manager's configuration retry window: the pod should stay Pending,
+then register, receive configuration, authenticate, and create a sandbox once
+setup succeeds. Also verify a pod replacement on a host with existing sandboxes.
+
+Local regression checks (Python standard library and Helm):
+
+```sh
+python3 charts/daytona/tests/test_runner_bootstrap.py
+helm lint charts/daytona
+```
+
 ## Support
 
 For support and questions, please refer to the [Daytona documentation](https://docs.daytona.io) or open an issue in the [Daytona repository](https://github.com/daytonaio/daytona).
