@@ -57,8 +57,9 @@ spec:
       hostAliases:
         {{- toYaml .Values.services.runner.hostAliases | nindent 8 }}
       {{- end }}
-      {{- if and .Values.services.runner.dockerInstaller.enabled .Values.services.runner.dockerInstaller.airgapped.enabled }}
+      {{- if .Values.services.runner.dockerInstaller.enabled }}
       initContainers:
+        {{- if .Values.services.runner.dockerInstaller.airgapped.enabled }}
         - name: extract-packages
           image: {{ .Values.services.runner.dockerInstaller.airgapped.packagesImage }}
           securityContext:
@@ -82,20 +83,10 @@ spec:
               tar -xzf packages.tar.gz
               echo "Packages extracted successfully"
               ls -la /host/tmp/offline-packages/
-      {{- end }}
-      containers:
-        {{- if .Values.services.runner.registryProxy.enabled }}
-        # Socat sidecar to forward registry -> external registry
-        - name: registry-proxy
-          image: {{ .Values.services.runner.registryProxy.image }}
-          args:
-            - "TCP-LISTEN:{{ .Values.services.runner.registryProxy.listenPort }},fork,reuseaddr"
-            - "TCP:{{ .Values.services.runner.registryProxy.targetHost }}:{{ .Values.services.runner.registryProxy.targetPort }}"
-          securityContext:
-            privileged: false
         {{- end }}
-        {{- if .Values.services.runner.dockerInstaller.enabled }}
-        # Docker installer sidecar - installs Docker on the host node
+        # Keep the pod Pending until the host runtime is usable. A regular
+        # sidecar lets runner-manager register it while Docker is installing,
+        # exhausting the manager's one-time config push retries.
         - name: docker-installer
           image: {{ .Values.services.runner.dockerInstaller.image }}
           securityContext:
@@ -105,17 +96,6 @@ spec:
               value: {{ .Values.services.runner.dockerInstaller.xfsStorageSize | quote }}
             - name: AIRGAPPED_MODE
               value: {{ .Values.services.runner.dockerInstaller.airgapped.enabled | quote }}
-          {{- with .Values.services.runner.dockerInstaller.readinessProbe }}
-          {{- if .enabled }}
-          readinessProbe:
-            exec:
-              command: ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "--", "systemctl", "is-active", "--quiet", "sysbox"]
-            periodSeconds: {{ .periodSeconds }}
-            timeoutSeconds: {{ .timeoutSeconds }}
-            failureThreshold: {{ .failureThreshold }}
-            successThreshold: 1
-          {{- end }}
-          {{- end }}
           volumeMounts:
             - name: host-root
               mountPath: /host
@@ -588,22 +568,53 @@ spec:
               systemctl status sysbox --no-pager -l || echo "Sysbox service status not available"
 
               if [ ! -x /usr/bin/sysbox-runc ] || [ ! -x /usr/bin/dockerd ] || ! command -v docker >/dev/null 2>&1 \
-                  || ! systemctl is-active --quiet sysbox || ! systemctl is-active --quiet docker; then
+                  || ! systemctl is-active --quiet sysbox || ! systemctl is-active --quiet docker \
+                  || ! docker info >/dev/null 2>&1; then
                 echo "ERROR: Docker/Sysbox are not installed and running on this node"
                 exit 1
               fi
 
               EOF
 
-              # Fail the container rather than monitor a node with no Sysbox: the pod
-              # goes NotReady and kubelet restarts the installer, which retries.
+              # Failed setup keeps the pod Pending; kubelet retries the init
+              # container before the runner can be discovered as Running.
               if [ $? -ne 0 ]; then
                 echo "Docker and Sysbox installation failed on the host node, exiting to retry"
                 exit 1
               fi
 
-              echo "Docker and Sysbox installer initialized. Monitoring services..."
-              
+              echo "Docker and Sysbox installation complete"
+      {{- end }}
+      containers:
+        {{- if .Values.services.runner.registryProxy.enabled }}
+        # Socat sidecar to forward registry -> external registry
+        - name: registry-proxy
+          image: {{ .Values.services.runner.registryProxy.image }}
+          args:
+            - "TCP-LISTEN:{{ .Values.services.runner.registryProxy.listenPort }},fork,reuseaddr"
+            - "TCP:{{ .Values.services.runner.registryProxy.targetHost }}:{{ .Values.services.runner.registryProxy.targetPort }}"
+          securityContext:
+            privileged: false
+        {{- end }}
+        {{- if .Values.services.runner.dockerInstaller.enabled }}
+        - name: docker-monitor
+          image: {{ .Values.services.runner.dockerInstaller.image }}
+          securityContext:
+            privileged: true
+          {{- with .Values.services.runner.dockerInstaller.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            exec:
+              command: ["nsenter", "-t", "1", "-m", "-u", "-n", "-i", "--", "sh", "-c", "systemctl is-active --quiet sysbox && systemctl is-active --quiet docker"]
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+            successThreshold: 1
+          {{- end }}
+          {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
               # Monitor and ensure Docker and Sysbox stay running
               while true; do
                 nsenter -t 1 -m -u -n -i sh -c '
@@ -621,7 +632,6 @@ spec:
                 ' || echo "Health check failed, will retry..."
                 sleep 60
               done
-              ln -s /host/var/lib/docker /var/lib/docker
         {{- end }}
         - name: runner
           image: "{{ include "daytona.imageRegistry" (dict "Values" .Values "serviceRegistry" .Values.services.runner.image.registry) }}/{{ .Values.services.runner.image.repository }}:{{ .Values.services.runner.image.tag | default .Chart.AppVersion }}"
