@@ -1,0 +1,16 @@
+{{- if .Values.services.api.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "daytona.fullname" . }}-api
+  namespace: {{ include "daytona.namespace" . }}
+  labels:
+    {{- include "daytona.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  maxUnavailable: {{ .Values.services.api.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "daytona.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+{{- end }}
