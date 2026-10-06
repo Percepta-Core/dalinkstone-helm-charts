@@ -242,6 +242,12 @@ services:
     podAnnotations: {}
     # Replica count
     replicaCount: 1
+    # PodDisruptionBudget for voluntary disruptions (node drains, AKS upgrades).
+    # maxUnavailable: 1 keeps a pod serving when there are 2+ replicas, and never
+    # blocks a drain when there is only 1.
+    podDisruptionBudget:
+      enabled: false
+      maxUnavailable: 1
     # Horizontal Pod Autoscaler configuration
     autoscaling:
       enabled: false
@@ -377,6 +383,12 @@ services:
     podAnnotations: {}
     # Replica count
     replicaCount: 1
+    # PodDisruptionBudget for voluntary disruptions (node drains, AKS upgrades).
+    # maxUnavailable: 1 keeps a pod serving when there are 2+ replicas, and never
+    # blocks a drain when there is only 1.
+    podDisruptionBudget:
+      enabled: false
+      maxUnavailable: 1
     # Horizontal Pod Autoscaler configuration
     autoscaling:
       enabled: false

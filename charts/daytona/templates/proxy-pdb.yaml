@@ -1,0 +1,16 @@
+{{- if .Values.services.proxy.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "daytona.fullname" . }}-proxy
+  namespace: {{ include "daytona.namespace" . }}
+  labels:
+    {{- include "daytona.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy
+spec:
+  maxUnavailable: {{ .Values.services.proxy.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "daytona.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: proxy
+{{- end }}
