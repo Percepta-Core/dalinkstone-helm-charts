@@ -4280,6 +4280,15 @@ spec:
                     --field-selector=status.phase!=Failed,status.phase!=Succeeded \
                     -o custom-columns=:metadata.name --no-headers > /shared/live-pods.txt
                   echo "Census: $(wc -l < /shared/live-pods.txt) live pods in $NAMESPACE"
+                  # app=node-placeholder is the runner-manager's own label; if it
+                  # ever changes, the key-never-delivered case just stops matching.
+                  kubectl get pods -n "$NAMESPACE" -l app=node-placeholder \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.nodeName}{"\n"}{end}' \
+                    > /shared/placeholder-nodes.txt
+                  kubectl get pods -n "$NAMESPACE" -l app=daytona-runner \
+                    -o jsonpath='{range .items[*]}{.spec.nodeName}{" "}{.status.containerStatuses[?(@.name=="runner")].ready}{"\n"}{end}' \
+                    | awk '$2 == "true" { print $1 }' > /shared/listening-runner-nodes.txt
+                  echo "Census: $(wc -l < /shared/listening-runner-nodes.txt) nodes with a listening runner"
               env:
                 - name: NAMESPACE
                   valueFrom:
@@ -4310,7 +4319,10 @@ spec:
                     exit 1
                   fi
                   CANDIDATES=$($PSQL -tA <<SQL
-                  SELECT id::text || '|' || name FROM runner
+                  SELECT id::text || '|' || name || '|' ||
+                         CASE WHEN state = 'initializing' AND "lastChecked" IS NULL
+                              THEN 'never-checked-in' ELSE 'checked-in' END
+                  FROM runner
                   WHERE (state = 'unresponsive'
                          AND "lastChecked" IS NOT NULL
                          AND "lastChecked" < now() - interval '${STALE_MIN} minutes')
@@ -4326,13 +4338,22 @@ spec:
                   REAP_IDS=""
                   for line in $CANDIDATES; do
                     id="${line%%|*}"
-                    name="${line#*|}"
+                    rest="${line#*|}"
+                    name="${rest%%|*}"
+                    history="${rest#*|}"
                     case "$id" in *[!0-9a-f-]*|"") echo "SKIP malformed id: $line"; continue;; esac
-                    if grep -qxF "$name" /shared/live-pods.txt; then
-                      echo "SKIP $name: backing pod still exists (node alive or still initializing)"
-                    else
+                    if ! grep -qxF "$name" /shared/live-pods.txt; then
                       echo "REAP $name: stale in DB and no backing pod — node is gone"
                       REAP_IDS="${REAP_IDS}${REAP_IDS:+,}'$id'"
+                      continue
+                    fi
+                    node=$(awk -v p="$name" '$1 == p { print $2 }' /shared/placeholder-nodes.txt)
+                    if [ "$history" = never-checked-in ] && [ -n "$node" ] \
+                        && grep -qxF "$node" /shared/listening-runner-nodes.txt; then
+                      echo "REAP $name: never checked in while the runner on $node is listening — its key was never delivered"
+                      REAP_IDS="${REAP_IDS}${REAP_IDS:+,}'$id'"
+                    else
+                      echo "SKIP $name: backing pod still exists (node alive or still initializing)"
                     fi
                   done
                   if [ -z "$REAP_IDS" ]; then
@@ -4343,8 +4364,9 @@ spec:
                   BEGIN;
                   -- These sandboxes lived on the deleted node; the rows are
                   -- unrecoverable and the API can never reconcile them, so
-                  -- remove them outright. Child rows (sandbox_fork,
-                  -- sandbox_last_activity, ssh_access) follow via ON DELETE
+                  -- remove them outright (a never-checked-in runner has none).
+                  -- Child rows (sandbox_fork, sandbox_last_activity,
+                  -- ssh_access) follow via ON DELETE
                   -- CASCADE. ::text on both sides keeps the comparison valid
                   -- whether "runnerId" is uuid or varchar across versions.
                   DELETE FROM sandbox WHERE "runnerId"::text IN (${REAP_IDS});

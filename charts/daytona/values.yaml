@@ -680,15 +680,19 @@ services:
     # Extra volumes for the pod (e.g. Secrets Store CSI Driver)
     extraVolumes: []
 
-  # Reaps runner rows (and their sandbox rows) ONLY for nodes that no longer
-  # exist. The runner-manager autoscaler counts initializing/unresponsive
-  # rows as "active" and only scales up while active < MIN_RUNNERS, and
-  # nothing in v0.184.0-k8s-oss.1 ever retires a row whose node/pod is gone —
-  # so a recycled sandbox node would otherwise NEVER get a replacement runner
-  # registered. Two gates must BOTH pass before a row is reaped: heartbeat
-  # dead >= staleAfterMinutes in the DB, AND the backing pod absent from the
-  # cluster. Runners on live nodes (even mid-restart or mid-install) and
-  # their sandboxes are never touched. Healthy runners heartbeat every ~10s.
+  # Reaps runner rows (and their sandbox rows) the runner-manager never
+  # recovers from on its own, after heartbeat has been dead for
+  # >= staleAfterMinutes:
+  #   - the node is gone: the backing placeholder pod no longer exists. The
+  #     autoscaler counts the dead row as "active" and only scales up while
+  #     active < MIN_RUNNERS, so the node would never be replaced otherwise.
+  #   - the key was never delivered: the row has never checked in, its
+  #     placeholder is alive and the runner on that node is listening. The
+  #     manager pushes a key only once, so the runner would 401 forever.
+  # A runner that has ever checked in is only reaped once its node is gone.
+  # Uses the in-cluster postgresql or externalDatabase, like the API.
+  # Keep staleAfterMinutes well above the manager's ~2 minute key push, or a
+  # row could be reaped while its push is still being retried.
   runnerReaper:
     enabled: true
     schedule: "*/2 * * * *"

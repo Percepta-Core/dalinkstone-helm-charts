@@ -1,8 +1,10 @@
-{{- if and .Values.services.runner.enabled .Values.services.runnerReaper.enabled .Values.postgresql.enabled }}
+{{- if and .Values.services.runner.enabled .Values.services.runnerReaper.enabled }}
 {{- /*
-Reaps runner rows (and their sandbox rows) ONLY for nodes that no longer exist.
+Reaps runner rows (and their sandbox rows) in the two cases the k8s-oss
+runner-manager never recovers from: the node is gone, or the runner's key was
+never delivered.
 
-Why this exists: the k8s-oss runner-manager scales runner instances only
+Node gone: the k8s-oss runner-manager scales runner instances only
 while active DB runners < MIN_RUNNERS, and it counts initializing/unresponsive
 rows as active. When a sandbox node is recycled (AKS delete-machines, scale
 events, VM faults) the runner row it backed goes unresponsive forever — no
@@ -14,19 +16,29 @@ node, which nothing can ever reconcile) un-wedges the autoscaler: it creates
 a fresh placeholder, registers a new runner row and pushes config to the
 DaemonSet runner pod on the replacement node.
 
-Safety model — two independent gates, BOTH must pass before a row is reaped:
-  1. DB gate:  the row must have had no heartbeat for >= staleAfterMinutes.
-  2. K8s gate: the pod backing the row (runner.name == placeholder pod name)
-     must NOT exist in the namespace. An init container records a census of
-     live (Pending/Running) pods; any stale row whose pod is still present
-     is skipped and logged.
-Gate 2 guarantees a healthy node whose runner is merely slow or restarting
-(DaemonSet roll on chart reapply, docker-installer rerun, runner crash) is
-NEVER reaped — its placeholder pod still exists — no matter how stale the
-heartbeat gets. Sandboxes on live nodes are never touched. The reaper never
-deletes k8s objects, pods or nodes; it only deletes DB rows for
-infrastructure that is already gone. Healthy runners heartbeat every ~10s
-and never even reach gate 1.
+Key never delivered: the manager creates the row and pushes its key to the
+runner once (15 tries, about 2 minutes) as soon as the runner pod is Running.
+On a fresh node that is long before Docker is installed and the runner can
+listen. After that the manager treats the row as registered forever, so the
+runner gets 401 on every request and never checks in. Deleting the row makes
+the manager re-register the same live placeholder and push a new key, which
+lands because the runner is listening by then.
+
+Safety model. Every reaped row has had no heartbeat for >= staleAfterMinutes,
+and additionally either:
+  1. Node gone: the pod backing the row (runner.name == placeholder pod name)
+     does NOT exist in the namespace. An init container records a census of
+     live (Pending/Running) pods.
+  2. Key never delivered: the row has NEVER checked in (state 'initializing',
+     lastChecked NULL), its placeholder is alive, and the runner container on
+     that placeholder's node is Ready, so the re-registration's push lands.
+A runner that has checked in even once can only be reaped once its node is
+gone, so a healthy node whose runner is merely slow or restarting (DaemonSet
+roll on chart reapply, docker-installer rerun, runner crash) is never reaped.
+A never-checked-in row cannot own sandboxes, because the API only schedules
+onto READY runners. The reaper never deletes k8s objects, pods or nodes; it
+only deletes DB rows. Healthy runners heartbeat every ~10s and never even
+reach the staleness check.
 */}}
 apiVersion: v1
 kind: ServiceAccount
@@ -110,6 +122,15 @@ spec:
                     --field-selector=status.phase!=Failed,status.phase!=Succeeded \
                     -o custom-columns=:metadata.name --no-headers > /shared/live-pods.txt
                   echo "Census: $(wc -l < /shared/live-pods.txt) live pods in $NAMESPACE"
+                  # app=node-placeholder is the runner-manager's own label; if it
+                  # ever changes, the key-never-delivered case just stops matching.
+                  kubectl get pods -n "$NAMESPACE" -l app=node-placeholder \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.nodeName}{"\n"}{end}' \
+                    > /shared/placeholder-nodes.txt
+                  kubectl get pods -n "$NAMESPACE" -l app=daytona-runner \
+                    -o jsonpath='{range .items[*]}{.spec.nodeName}{" "}{.status.containerStatuses[?(@.name=="runner")].ready}{"\n"}{end}' \
+                    | awk '$2 == "true" { print $1 }' > /shared/listening-runner-nodes.txt
+                  echo "Census: $(wc -l < /shared/listening-runner-nodes.txt) nodes with a listening runner"
               env:
                 - name: NAMESPACE
                   valueFrom:
@@ -140,7 +161,10 @@ spec:
                     exit 1
                   fi
                   CANDIDATES=$($PSQL -tA <<SQL
-                  SELECT id::text || '|' || name FROM runner
+                  SELECT id::text || '|' || name || '|' ||
+                         CASE WHEN state = 'initializing' AND "lastChecked" IS NULL
+                              THEN 'never-checked-in' ELSE 'checked-in' END
+                  FROM runner
                   WHERE (state = 'unresponsive'
                          AND "lastChecked" IS NOT NULL
                          AND "lastChecked" < now() - interval '${STALE_MIN} minutes')
@@ -156,13 +180,22 @@ spec:
                   REAP_IDS=""
                   for line in $CANDIDATES; do
                     id="${line%%|*}"
-                    name="${line#*|}"
+                    rest="${line#*|}"
+                    name="${rest%%|*}"
+                    history="${rest#*|}"
                     case "$id" in *[!0-9a-f-]*|"") echo "SKIP malformed id: $line"; continue;; esac
-                    if grep -qxF "$name" /shared/live-pods.txt; then
-                      echo "SKIP $name: backing pod still exists (node alive or still initializing)"
-                    else
+                    if ! grep -qxF "$name" /shared/live-pods.txt; then
                       echo "REAP $name: stale in DB and no backing pod — node is gone"
                       REAP_IDS="${REAP_IDS}${REAP_IDS:+,}'$id'"
+                      continue
+                    fi
+                    node=$(awk -v p="$name" '$1 == p { print $2 }' /shared/placeholder-nodes.txt)
+                    if [ "$history" = never-checked-in ] && [ -n "$node" ] \
+                        && grep -qxF "$node" /shared/listening-runner-nodes.txt; then
+                      echo "REAP $name: never checked in while the runner on $node is listening — its key was never delivered"
+                      REAP_IDS="${REAP_IDS}${REAP_IDS:+,}'$id'"
+                    else
+                      echo "SKIP $name: backing pod still exists (node alive or still initializing)"
                     fi
                   done
                   if [ -z "$REAP_IDS" ]; then
@@ -173,8 +206,9 @@ spec:
                   BEGIN;
                   -- These sandboxes lived on the deleted node; the rows are
                   -- unrecoverable and the API can never reconcile them, so
-                  -- remove them outright. Child rows (sandbox_fork,
-                  -- sandbox_last_activity, ssh_access) follow via ON DELETE
+                  -- remove them outright (a never-checked-in runner has none).
+                  -- Child rows (sandbox_fork, sandbox_last_activity,
+                  -- ssh_access) follow via ON DELETE
                   -- CASCADE. ::text on both sides keeps the comparison valid
                   -- whether "runnerId" is uuid or varchar across versions.
                   DELETE FROM sandbox WHERE "runnerId"::text IN (${REAP_IDS});
@@ -185,6 +219,7 @@ spec:
               env:
                 - name: STALE_AFTER_MINUTES
                   value: {{ .Values.services.runnerReaper.staleAfterMinutes | default 5 | quote }}
+                {{- if .Values.postgresql.enabled }}
                 - name: DB_HOST
                   value: {{ printf "%s-postgresql" .Release.Name | quote }}
                 - name: DB_PORT
@@ -198,6 +233,34 @@ spec:
                     secretKeyRef:
                       name: {{ printf "%s-postgresql" .Release.Name }}
                       key: password
+                {{- else }}
+                # Same database, credentials and TLS verification as the API.
+                - name: DB_HOST
+                  value: {{ .Values.externalDatabase.host | default (.Values.services.api.env.DB_HOST | default "") | quote }}
+                - name: DB_PORT
+                  value: {{ .Values.externalDatabase.port | default (.Values.services.api.env.DB_PORT | default "5432") | quote }}
+                - name: DB_DATABASE
+                  value: {{ .Values.externalDatabase.name | default (.Values.services.api.env.DB_DATABASE | default "") | quote }}
+                - name: DB_USERNAME
+                  value: {{ .Values.externalDatabase.user | default (.Values.services.api.env.DB_USERNAME | default "") | quote }}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.externalDatabase.existingSecret | default (printf "%s-db" (include "daytona.secretName" .)) | quote }}
+                      key: database-password
+                {{- if .Values.externalDatabase.enableTLS }}
+                {{- if .Values.externalDatabase.allowSelfSignedCert }}
+                - name: PGSSLMODE
+                  value: "require"
+                {{- else }}
+                # sslrootcert=system needs libpq 16+, which the default postgres:17 image has.
+                - name: PGSSLMODE
+                  value: "verify-full"
+                - name: PGSSLROOTCERT
+                  value: "system"
+                {{- end }}
+                {{- end }}
+                {{- end }}
               volumeMounts:
                 - name: shared
                   mountPath: /shared
