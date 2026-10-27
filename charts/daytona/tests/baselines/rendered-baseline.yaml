@@ -4245,7 +4245,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: runner-reaper
 spec:
-  schedule: "*/2 * * * *"
+  schedule: "* * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
@@ -4376,7 +4376,7 @@ spec:
                   echo "Reap complete"
               env:
                 - name: STALE_AFTER_MINUTES
-                  value: "5"
+                  value: "3"
                 - name: DB_HOST
                   value: "release-name-postgresql"
                 - name: DB_PORT
