@@ -169,10 +169,13 @@ spec:
               mkdir -p /etc/apt/apt.conf.d
               echo 'DPkg::Lock::Timeout "600";' > /etc/apt/apt.conf.d/90daytona-dpkg-lock-timeout
 
+              # Don't match unattended-upgr here: process names are cut to 15 chars, so it also
+              # matches the always-running unattended-upgrade-shutdown helper and every wait runs
+              # the full 600s. A real unattended-upgrades run holds the lock files, which fuser sees.
               wait_for_dpkg_lock() {
                 waited=0
                 while { command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; } \
-                    || pgrep -x 'dpkg|apt|apt-get|unattended-upgr' >/dev/null 2>&1; do
+                    || pgrep -x 'dpkg|apt|apt-get' >/dev/null 2>&1; do
                   if [ "$waited" -ge 600 ]; then
                     echo "dpkg lock still held after ${waited}s, continuing anyway"
                     return 0
