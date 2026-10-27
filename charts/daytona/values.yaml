@@ -691,12 +691,14 @@ services:
   #     manager pushes a key only once, so the runner would 401 forever.
   # A runner that has ever checked in is only reaped once its node is gone.
   # Uses the in-cluster postgresql or externalDatabase, like the API.
-  # Keep staleAfterMinutes well above the manager's ~2 minute key push, or a
-  # row could be reaped while its push is still being retried.
+  # staleAfterMinutes must stay above the manager's key push (15 tries over
+  # about 2 minutes), or a row could be reaped while its push is still being
+  # retried. Users whose sandboxes were on a lost node stay stuck until this
+  # runs, so it is kept as short as that allows.
   runnerReaper:
     enabled: true
-    schedule: "*/2 * * * *"
-    staleAfterMinutes: 5
+    schedule: "* * * * *"
+    staleAfterMinutes: 3
     image:
       registry: docker.io
       repository: library/postgres
