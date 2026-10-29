@@ -208,8 +208,6 @@ spec:
               protocol: TCP
           {{- with .Values.services.api.livenessProbe }}
           {{- if .enabled }}
-          # Any HTTP answer (403 for the bogus token) passes; only a hang or a
-          # refused connection fails.
           livenessProbe:
             exec:
               command:
