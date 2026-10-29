@@ -206,6 +206,18 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
+          {{- with .Values.services.api.livenessProbe }}
+          {{- if .enabled }}
+          livenessProbe:
+            {{- include "daytona.api.previewLookupProbe" . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.services.api.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            {{- include "daytona.api.previewLookupProbe" . | nindent 12 }}
+          {{- end }}
+          {{- end }}
           env:
             - name: DEFAULT_RUNNER_NAME
               value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "" | quote }}

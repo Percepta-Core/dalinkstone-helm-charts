@@ -242,6 +242,17 @@ services:
     podAnnotations: {}
     # Replica count
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 2
     # Horizontal Pod Autoscaler configuration
     autoscaling:
       enabled: false
