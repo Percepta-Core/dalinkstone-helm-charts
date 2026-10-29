@@ -242,6 +242,18 @@ services:
     podAnnotations: {}
     # Replica count
     replicaCount: 1
+    # Restarts the api when signed-preview-token lookups (the proxy's path to
+    # every sandbox) hang. The probe sends the proxy's own request with a bogus
+    # token: a healthy api answers 403 in milliseconds after a Redis GET on its
+    # main client. /api/health doesn't cover this: it touches nothing, and
+    # /api/health/ready pings Redis on a separate duplicate() connection, so it
+    # passes while the lookup hangs.
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
     # Horizontal Pod Autoscaler configuration
     autoscaling:
       enabled: false

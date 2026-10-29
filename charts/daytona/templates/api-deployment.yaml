@@ -206,6 +206,22 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
+          {{- with .Values.services.api.livenessProbe }}
+          {{- if .enabled }}
+          # Any HTTP answer (403 for the bogus token) passes; only a hang or a
+          # refused connection fails.
+          livenessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - fetch('http://127.0.0.1:3000/api/preview/liveness-probe/1/sandbox-id',{headers:{authorization:'Bearer '+process.env.PROXY_API_KEY},signal:AbortSignal.timeout({{ mul (sub .timeoutSeconds 1) 1000 }})}).then(()=>process.exit(0),()=>process.exit(1))
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
           env:
             - name: DEFAULT_RUNNER_NAME
               value: {{ .Values.services.api.env.DEFAULT_RUNNER_NAME | default "" | quote }}
