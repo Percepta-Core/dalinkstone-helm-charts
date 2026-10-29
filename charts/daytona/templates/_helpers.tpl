@@ -161,3 +161,17 @@ Usage:
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "daytona.api.previewLookupProbe" -}}
+exec:
+  command:
+    - node
+    - -e
+    - fetch('http://127.0.0.1:3000/api/preview/liveness-probe/1/sandbox-id',{headers:{authorization:'Bearer '+process.env.PROXY_API_KEY},signal:AbortSignal.timeout({{ mul (sub .timeoutSeconds 1) 1000 }})}).then(()=>process.exit(0),()=>process.exit(1))
+{{- with .initialDelaySeconds }}
+initialDelaySeconds: {{ . }}
+{{- end }}
+periodSeconds: {{ .periodSeconds }}
+timeoutSeconds: {{ .timeoutSeconds }}
+failureThreshold: {{ .failureThreshold }}
+{{- end -}}
