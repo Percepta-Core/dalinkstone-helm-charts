@@ -2268,6 +2268,77 @@ spec:
             type: Directory
 
 ---
+# Source: daytona/templates/runner-image-gc-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: release-name-daytona-runner-image-gc
+  namespace: default
+  labels:
+    helm.sh/chart: daytona-0.0.24
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.183.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: runner-image-gc
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: daytona
+      app.kubernetes.io/instance: release-name
+      app.kubernetes.io/component: runner-image-gc
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: daytona
+        app.kubernetes.io/instance: release-name
+        app.kubernetes.io/component: runner-image-gc
+    spec:
+      # Same nodes as the runner DaemonSet.
+      nodeSelector:
+        daytona-sandbox-c: "true"
+      tolerations:
+        - key: "sandbox"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: image-gc
+          # The runner image already ships the docker CLI and is already on the node.
+          image: "docker.io/daytonaio/daytona-runner:v0.183.0"
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              while :; do
+                docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' | awk '
+                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { copied[$1] = 1; next }
+                  $2 !~ /<none>/ { tags[$1] = tags[$1] " " $2 }
+                  END { for (id in copied) if (id in tags) print tags[id] }' |
+                  xargs -r docker rmi
+                docker image prune -f
+                sleep 600
+              done
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 5m
+              memory: 16Mi
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+      volumes:
+        # Socket, not Directory: the pod waits until the docker-installer has
+        # started Docker on a fresh node.
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+
+---
 # Source: daytona/charts/harbor/templates/core/core-dpl.yaml
 apiVersion: apps/v1
 kind: Deployment

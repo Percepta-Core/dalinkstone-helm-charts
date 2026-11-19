@@ -1,0 +1,83 @@
+{{- if and .Values.services.runner.enabled .Values.services.runnerImageGc.enabled (eq (.Values.services.runner.env.CONTAINER_RUNTIME | default "docker") "docker") }}
+{{- /*
+Frees the runner's Docker disk of images Daytona pulled but never deletes.
+
+To create a snapshot the runner pulls the source image, tags it as
+`<registry>/daytona-<hash>:daytona` and pushes that copy. With v2 (job-based)
+runners the API marks the snapshot active when the pull job completes, which
+skips the API step that removes the source tag.
+Daytona later removes only the `daytona-*` tag, so the source tag keeps every
+layer forever. Once the runner's XFS Docker disk passes 75%, its availability
+score drops below the 30 a new snapshot needs, and every new snapshot stays
+`pending`.
+
+Each pass un-tags images that also carry a `daytona-*` tag. That only
+un-tags, so nothing a sandbox runs from is deleted, and it never touches an
+in-flight pull, which has no `daytona-*` tag yet. When Daytona later removes
+the `daytona-*` tag, the image has no tags left and Docker deletes it.
+`docker image prune` (dangling only) catches images whose last tag was removed
+while a sandbox still used them. A separate DaemonSet, so rolling it out never
+restarts runner pods.
+*/}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "daytona.fullname" . }}-runner-image-gc
+  namespace: {{ include "daytona.namespace" . }}
+  labels:
+    {{- include "daytona.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runner-image-gc
+spec:
+  selector:
+    matchLabels:
+      {{- include "daytona.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: runner-image-gc
+  template:
+    metadata:
+      labels:
+        {{- include "daytona.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: runner-image-gc
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Same nodes as the runner DaemonSet.
+      nodeSelector:
+        daytona-sandbox-c: "true"
+      tolerations:
+        - key: "sandbox"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: image-gc
+          # The runner image already ships the docker CLI and is already on the node.
+          image: "{{ include "daytona.imageRegistry" (dict "Values" .Values "serviceRegistry" .Values.services.runner.image.registry) }}/{{ .Values.services.runner.image.repository }}:{{ .Values.services.runner.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.services.runner.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              while :; do
+                docker images --format '{{ "{{.ID}} {{.Repository}}:{{.Tag}}" }}' | awk '
+                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { copied[$1] = 1; next }
+                  $2 !~ /<none>/ { tags[$1] = tags[$1] " " $2 }
+                  END { for (id in copied) if (id in tags) print tags[id] }' |
+                  xargs -r docker rmi
+                docker image prune -f
+                sleep 600
+              done
+          resources:
+            {{- toYaml .Values.services.runnerImageGc.resources | nindent 12 }}
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+      volumes:
+        # Socket, not Directory: the pod waits until the docker-installer has
+        # started Docker on a fresh node.
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+{{- end }}
