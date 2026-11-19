@@ -2318,7 +2318,7 @@ spec:
                   END { for (id in copied) if (id in tags) print tags[id] }' |
                   xargs -r docker rmi
                 docker image prune -f
-                sleep 600
+                sleep 60
               done
           resources:
             limits:

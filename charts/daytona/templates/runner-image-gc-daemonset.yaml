@@ -18,6 +18,9 @@ the `daytona-*` tag, the image has no tags left and Docker deletes it.
 `docker image prune` (dangling only) catches images whose last tag was removed
 while a sandbox still used them. A separate DaemonSet, so rolling it out never
 restarts runner pods.
+
+Runs every minute: a snapshot can be retired within minutes of its pull, and a
+source tag whose `daytona-*` tag is already gone is never un-tagged.
 */}}
 apiVersion: apps/v1
 kind: DaemonSet
@@ -66,7 +69,7 @@ spec:
                   END { for (id in copied) if (id in tags) print tags[id] }' |
                   xargs -r docker rmi
                 docker image prune -f
-                sleep 600
+                sleep 60
               done
           resources:
             {{- toYaml .Values.services.runnerImageGc.resources | nindent 12 }}
