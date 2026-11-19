@@ -691,6 +691,19 @@ services:
     # Extra volumes for the pod (e.g. Secrets Store CSI Driver)
     extraVolumes: []
 
+  # Un-tags source images the runner keeps after creating a snapshot, which
+  # otherwise fill its Docker disk. See templates/runner-image-gc-daemonset.yaml.
+  # Renders only with the docker runtime.
+  runnerImageGc:
+    enabled: true
+    resources:
+      requests:
+        cpu: 5m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
   # Reaps runner rows (and their sandbox rows) the runner-manager never
   # recovers from on its own, after heartbeat has been dead for
   # >= staleAfterMinutes:

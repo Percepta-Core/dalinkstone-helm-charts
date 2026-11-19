@@ -2268,6 +2268,81 @@ spec:
             type: Directory
 
 ---
+# Source: daytona/templates/runner-image-gc-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: release-name-daytona-runner-image-gc
+  namespace: default
+  labels:
+    helm.sh/chart: daytona-0.0.24
+    app.kubernetes.io/name: daytona
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.183.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: runner-image-gc
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: daytona
+      app.kubernetes.io/instance: release-name
+      app.kubernetes.io/component: runner-image-gc
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: daytona
+        app.kubernetes.io/instance: release-name
+        app.kubernetes.io/component: runner-image-gc
+    spec:
+      # Same nodes as the runner DaemonSet.
+      nodeSelector:
+        daytona-sandbox-c: "true"
+      tolerations:
+        - key: "sandbox"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: image-gc
+          # The runner image already ships the docker CLI and is already on the node.
+          image: "docker.io/daytonaio/daytona-runner:v0.183.0"
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              touch /tmp/ready
+              while :; do
+                : > /tmp/now
+                docker images --digests --format '{{.ID}} {{.Repository}}:{{.Tag}} {{.Digest}}' | awk '
+                  FILENAME == "/tmp/ready" { ready[$0] = 1; next }
+                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { if ($3 != "<none>") pushed[$1] = 1; next }
+                  $2 !~ /<none>/ { image[$2] = $1 }
+                  END { for (t in image) if (image[t] in pushed) { print t > "/tmp/now"; if (t in ready) print t } }' /tmp/ready - |
+                  xargs -r docker rmi
+                mv /tmp/now /tmp/ready
+                docker image prune -f
+                sleep 60
+              done
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 5m
+              memory: 32Mi
+          volumeMounts:
+            - name: docker-run
+              mountPath: /var/run
+      volumes:
+        # The directory, like the runner: dockerd recreates its socket on every
+        # restart, and a mount of the socket file would keep the dead one.
+        - name: docker-run
+          hostPath:
+            path: /var/run/
+            type: Directory
+
+---
 # Source: daytona/charts/harbor/templates/core/core-dpl.yaml
 apiVersion: apps/v1
 kind: Deployment
