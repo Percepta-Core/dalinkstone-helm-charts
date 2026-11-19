@@ -2311,32 +2311,36 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
+              touch /tmp/ready
               while :; do
-                docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' | awk '
-                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { copied[$1] = 1; next }
-                  $2 !~ /<none>/ { tags[$1] = tags[$1] " " $2 }
-                  END { for (id in copied) if (id in tags) print tags[id] }' |
+                : > /tmp/now
+                docker images --digests --format '{{.ID}} {{.Repository}}:{{.Tag}} {{.Digest}}' | awk '
+                  FILENAME == "/tmp/ready" { ready[$0] = 1; next }
+                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { if ($3 != "<none>") pushed[$1] = 1; next }
+                  $2 !~ /<none>/ { image[$2] = $1 }
+                  END { for (t in image) if (image[t] in pushed) { print t > "/tmp/now"; if (t in ready) print t } }' /tmp/ready - |
                   xargs -r docker rmi
+                mv /tmp/now /tmp/ready
                 docker image prune -f
                 sleep 60
               done
           resources:
             limits:
               cpu: 100m
-              memory: 64Mi
+              memory: 128Mi
             requests:
               cpu: 5m
-              memory: 16Mi
+              memory: 32Mi
           volumeMounts:
-            - name: docker-socket
-              mountPath: /var/run/docker.sock
+            - name: docker-run
+              mountPath: /var/run
       volumes:
-        # Socket, not Directory: the pod waits until the docker-installer has
-        # started Docker on a fresh node.
-        - name: docker-socket
+        # The directory, like the runner: dockerd recreates its socket on every
+        # restart, and a mount of the socket file would keep the dead one.
+        - name: docker-run
           hostPath:
-            path: /var/run/docker.sock
-            type: Socket
+            path: /var/run/
+            type: Directory
 
 ---
 # Source: daytona/charts/harbor/templates/core/core-dpl.yaml

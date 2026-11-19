@@ -11,16 +11,16 @@ layer forever. Once the runner's XFS Docker disk passes 75%, its availability
 score drops below the 30 a new snapshot needs, and every new snapshot stays
 `pending`.
 
-Each pass un-tags images that also carry a `daytona-*` tag. That only
-un-tags, so nothing a sandbox runs from is deleted, and it never touches an
-in-flight pull, which has no `daytona-*` tag yet. When Daytona later removes
-the `daytona-*` tag, the image has no tags left and Docker deletes it.
-`docker image prune` (dangling only) catches images whose last tag was removed
-while a sandbox still used them. A separate DaemonSet, so rolling it out never
-restarts runner pods.
+A tag is un-tagged once two passes in a row have seen it on an image whose
+`daytona-*` tag has been pushed (has a digest). The pull job inspects the
+source tag after its push, and a new tag on an already-pushed image would
+otherwise go before the runner re-tags it. Un-tagging deletes nothing a
+sandbox runs from: when Daytona later removes the `daytona-*` tag, the image
+has no tags left and Docker deletes it. `docker image prune` (dangling only)
+frees digest-pinned sources (`repo:<none>`) the same way. A separate
+DaemonSet, so rolling it out never restarts runner pods.
 
-Runs every minute: a snapshot can be retired within minutes of its pull, and a
-source tag whose `daytona-*` tag is already gone is never un-tagged.
+A snapshot retired within about two minutes of its pull keeps its source tag.
 */}}
 apiVersion: apps/v1
 kind: DaemonSet
@@ -62,25 +62,29 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
+              touch /tmp/ready
               while :; do
-                docker images --format '{{ "{{.ID}} {{.Repository}}:{{.Tag}}" }}' | awk '
-                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { copied[$1] = 1; next }
-                  $2 !~ /<none>/ { tags[$1] = tags[$1] " " $2 }
-                  END { for (id in copied) if (id in tags) print tags[id] }' |
+                : > /tmp/now
+                docker images --digests --format '{{ "{{.ID}} {{.Repository}}:{{.Tag}} {{.Digest}}" }}' | awk '
+                  FILENAME == "/tmp/ready" { ready[$0] = 1; next }
+                  $2 ~ /(^|\/)daytona-[0-9a-f]+:daytona$/ { if ($3 != "<none>") pushed[$1] = 1; next }
+                  $2 !~ /<none>/ { image[$2] = $1 }
+                  END { for (t in image) if (image[t] in pushed) { print t > "/tmp/now"; if (t in ready) print t } }' /tmp/ready - |
                   xargs -r docker rmi
+                mv /tmp/now /tmp/ready
                 docker image prune -f
                 sleep 60
               done
           resources:
             {{- toYaml .Values.services.runnerImageGc.resources | nindent 12 }}
           volumeMounts:
-            - name: docker-socket
-              mountPath: /var/run/docker.sock
+            - name: docker-run
+              mountPath: /var/run
       volumes:
-        # Socket, not Directory: the pod waits until the docker-installer has
-        # started Docker on a fresh node.
-        - name: docker-socket
+        # The directory, like the runner: dockerd recreates its socket on every
+        # restart, and a mount of the socket file would keep the dead one.
+        - name: docker-run
           hostPath:
-            path: /var/run/docker.sock
-            type: Socket
+            path: /var/run/
+            type: Directory
 {{- end }}

@@ -699,10 +699,10 @@ services:
     resources:
       requests:
         cpu: 5m
-        memory: 16Mi
+        memory: 32Mi
       limits:
         cpu: 100m
-        memory: 64Mi
+        memory: 128Mi
 
   # Reaps runner rows (and their sandbox rows) the runner-manager never
   # recovers from on its own, after heartbeat has been dead for
